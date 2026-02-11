@@ -1,0 +1,174 @@
+﻿python : C:\Users\WELCOME\Ap
+pData\Local\Programs\Python\
+Python310\lib\site-packages\
+google\api_core\_python_vers
+ion_support.py:275: 
+FutureWarning: You are 
+using a Python version 
+(3.10.11) which Google will 
+stop supporting in new 
+releases of google.api_core 
+once it reaches its end of 
+life (2026-10-04). Please 
+upgrade to the latest 
+Python version, or at least 
+Python 3.11, to continue 
+receiving updates for 
+google.api_core past that 
+date.
+At line:1 char:1
++ python debug_gemini.py > 
+debug_output.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (C:\Us  
+  ers\WELCOM...past that    
+ date.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+  warnings.warn(message, 
+FutureWarning)
+D:\Project-Files\Zara-Chatbo
+t\backend\debug_gemini.py:4:
+ FutureWarning: 
+
+All support for the 
+`google.generativeai` 
+package has ended. It will 
+no longer be receiving 
+updates or bug fixes. 
+Please switch to the 
+`google.genai` package as 
+soon as possible.
+See README for more details:
+
+https://github.com/google-ge
+mini/deprecated-generative-a
+i-python/blob/main/README.md
+
+  import 
+google.generativeai as genai
+Traceback (most recent call 
+last):
+  File "D:\Project-Files\Zar
+a-Chatbot\backend\debug_gemi
+ni.py", line 29, in <module>
+    response = 
+model.generate_content("Hi")
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\generativeai\generativ
+e_models.py", line 331, in 
+generate_content
+    response = self._client.
+generate_content(
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\ai\generativelanguage_
+v1beta\services\generative_s
+ervice\client.py", line 
+835, in generate_content
+    response = rpc(
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\api_core\gapic_v1\meth
+od.py", line 131, in 
+__call__
+    return 
+wrapped_func(*args, 
+**kwargs)
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\api_core\retry\retry_u
+nary.py", line 294, in 
+retry_wrapped_func
+    return retry_target(
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\api_core\retry\retry_u
+nary.py", line 156, in 
+retry_target
+    next_sleep = 
+_retry_error_helper(
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\api_core\retry\retry_b
+ase.py", line 214, in 
+_retry_error_helper
+    raise final_exc from 
+source_exc
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\api_core\retry\retry_u
+nary.py", line 147, in 
+retry_target
+    result = target()
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\api_core\timeout.py", 
+line 130, in 
+func_with_timeout
+    return func(*args, 
+**kwargs)
+  File "C:\Users\WELCOME\App
+Data\Local\Programs\Python\P
+ython310\lib\site-packages\g
+oogle\api_core\grpc_helpers.
+py", line 77, in 
+error_remapped_callable
+    raise exceptions.from_gr
+pc_error(exc) from exc
+google.api_core.exceptions.N
+otFound: 404 
+models/gemini-1.5-flash is 
+not found for API version 
+v1beta, or is not supported 
+for generateContent. Call 
+ListModels to see the list 
+of available models and 
+their supported methods.
+Key loaded: True
+Listing models...
+- models/gemini-2.5-flash
+- models/gemini-2.5-pro
+- models/gemini-2.0-flash
+- models/gemini-2.0-flash-001
+- models/gemini-2.0-flash-exp-image-generation
+- models/gemini-2.0-flash-lite-001
+- models/gemini-2.0-flash-lite
+- models/gemini-exp-1206
+- models/gemini-2.5-flash-preview-tts
+- models/gemini-2.5-pro-preview-tts
+- models/gemma-3-1b-it
+- models/gemma-3-4b-it
+- models/gemma-3-12b-it
+- models/gemma-3-27b-it
+- models/gemma-3n-e4b-it
+- models/gemma-3n-e2b-it
+- models/gemini-flash-latest
+- models/gemini-flash-lite-latest
+- models/gemini-pro-latest
+- models/gemini-2.5-flash-lite
+- models/gemini-2.5-flash-image
+- models/gemini-2.5-flash-preview-09-2025
+- models/gemini-2.5-flash-lite-preview-09-2025
+- models/gemini-3-pro-preview
+- models/gemini-3-flash-preview
+- models/gemini-3-pro-image-preview
+- models/nano-banana-pro-preview
+- models/gemini-robotics-er-1.5-preview
+- models/gemini-2.5-computer-use-preview-10-2025
+- models/deep-research-pro-preview-12-2025
+
+Trying generation with 'models/gemini-1.5-flash'...

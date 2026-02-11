@@ -1,0 +1,61 @@
+﻿python : C:\Users\WELCOME\Ap
+pData\Local\Programs\Python\
+Python310\lib\site-packages\
+google\api_core\_python_vers
+ion_support.py:275: 
+FutureWarning: You are 
+using a Python version 
+(3.10.11) which Google will 
+stop supporting in new 
+releases of google.api_core 
+once it reaches its end of 
+life (2026-10-04). Please 
+upgrade to the latest 
+Python version, or at least 
+Python 3.11, to continue 
+receiving updates for 
+google.api_core past that 
+date.
+At line:1 char:1
++ python test_api.py > 
+test_api_log_latest.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (C:\Us  
+  ers\WELCOM...past that    
+ date.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+  warnings.warn(message, 
+FutureWarning)
+D:\Project-Files\Zara-Chatbo
+t\backend\test_api.py:3: 
+FutureWarning: 
+
+All support for the 
+`google.generativeai` 
+package has ended. It will 
+no longer be receiving 
+updates or bug fixes. 
+Please switch to the 
+`google.genai` package as 
+soon as possible.
+See README for more details:
+
+https://github.com/google-ge
+mini/deprecated-generative-a
+i-python/blob/main/README.md
+
+  import 
+google.generativeai as genai
+==================================================
+API Key found: AIzaSyCah3WiYCIsPQs1...
+==================================================
+Sending test message to Gemini...
+==================================================
+SUCCESS! Gemini API is working!
+Response: Hello!
+==================================================
