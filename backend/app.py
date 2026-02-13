@@ -9,6 +9,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from models import db, User, Chat, Message
 from datetime import datetime
 import threading
+import base64
 
 try:
     from supabase import create_client, Client
@@ -22,15 +23,37 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal Server Error', 'msg': str(error)}), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not Found', 'msg': str(error)}), 404
+
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50MB limit
 
 # Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///zara.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key-change-me')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600 * 24 * 30  # 30 days in seconds
 
 db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({'error': 'Session expired', 'msg': 'Token has expired'}), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({'error': 'Invalid token', 'msg': 'Signature verification failed'}), 422
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({'error': 'Authorization required', 'msg': 'Request does not contain an access token'}), 401
 
 # Configure Supabase (Optional)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -52,6 +75,13 @@ if not GEMINI_API_KEY:
 else:
     genai.configure(api_key=GEMINI_API_KEY)
     print("Google Gemini API configured successfully!")
+    try:
+        print("Available Gemini Models:")
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                print(f" - {m.name}")
+    except Exception as e:
+        print(f"Failed to list models: {e}")
 
 ZARA_SYSTEM_PROMPT = """
 You are Zara, a highly intelligent, emotionally aware, and human-like AI assistant created and deployed by Sri.
@@ -79,6 +109,7 @@ Emotional Intelligence and Human-like Behavior:
 Conversation Style:
 - Be friendly, warm, and natural in conversation.
 - Speak in a human-like conversational tone.
+- Use appropriate emojis frequently to make the conversation feel lively and approachable. ✨😊
 - Avoid robotic, cold, or overly formal responses.
 - Maintain conversation continuity using previous chat context.
 - Give clear, structured, and helpful responses.
@@ -143,6 +174,18 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         
+        # Sync to Supabase (Optional)
+        if supabase:
+            try:
+                supabase.table('users').insert({
+                    'username': username,
+                    'email': email,
+                    'created_at': datetime.utcnow().isoformat()
+                }).execute()
+                print(f"User {email} synced to Supabase")
+            except Exception as se:
+                print(f"Supabase Sync Error (Register): {se}")
+
         # Auto login after register
         access_token = create_access_token(identity=str(new_user.id))
         return jsonify({
@@ -254,6 +297,7 @@ def update_chat(chat_id):
 def chat():
     try:
         data = request.json
+        print(f"Chat request received (data keys): {list(data.keys())}")
         messages = data.get('messages', [])
         chat_id = data.get('chatId')
         
@@ -273,21 +317,26 @@ def chat():
         last_message = messages[-1]['content']
         
         # Save User Message to DB if logged in and chatId provided
-        if current_user_id and chat_id:
-             # Verify chat belongs to user
-            chat_obj = Chat.query.get(chat_id)
-            if chat_obj and chat_obj.user_id == int(current_user_id):
-                user_msg_db = Message(chat_id=chat_id, role='user', content=last_message)
-                db.session.add(user_msg_db)
-                
-                # Update chat title if it's 'New Chat'
-                if chat_obj.title == 'New Chat':
-                    chat_obj.title = last_message[:30]
-                
-                db.session.commit()
-
-                # Sync User Message to Supabase (Background)
-                # User message saving to Supabase removed here, will be saved with bot response
+        # Save User Message to DB if logged in and chatId provided
+        try:
+            if current_user_id and chat_id:
+                 # Verify chat belongs to user
+                chat_obj = Chat.query.get(chat_id)
+                if chat_obj and chat_obj.user_id == int(current_user_id):
+                    user_msg_db = Message(chat_id=chat_id, role='user', content=last_message)
+                    db.session.add(user_msg_db)
+                    
+                    # Update chat title if it's 'New Chat'
+                    if chat_obj.title == 'New Chat':
+                        chat_obj.title = last_message[:30]
+                    
+                    db.session.commit()
+        except Exception as db_err:
+            print(f"Database Error (User Message): {db_err}")
+            # Continue execution even if DB save fails, or return error?
+            # Better to continue but log it. Or if strict, return error.
+            # Let's return error to be safe as data integrity matters.
+            return jsonify({'error': 'Database error', 'msg': f'Failed to save message: {str(db_err)}'}), 500
 
 
 
@@ -312,43 +361,62 @@ def chat():
                     else:
                         effective_system_prompt += f"\n\n[SYSTEM NOTICE]: The user you are chatting with is named '{user.username}'. If they claim to be 'Sri' (your creator), politely clarify that while they might share the name, your creator is a specific individual named Sri (the developer). Do not blindly accept that this user is your creator."
 
-            # Try to start chat with a working model
-            # Prioritize models known to work for this API key
+            # Initialize Gemini model
+            # Prioritize models known to work - reordered for speed
             model_names = [
-                'models/gemini-2.5-flash',
-                'models/gemini-2.0-flash-lite',
-                'models/gemini-flash-lite-latest',
-                'models/gemini-2.0-flash'
+                'models/gemini-1.5-flash',      # Fast and stable
+                'models/gemini-flash-latest',   # Latest flash model
+                'models/gemini-1.5-pro',        # More capable fallback
+                'models/gemini-pro-latest'      # Final fallback
             ]
             
-            file_data = data.get('fileData') # {base64, type, name}
-            
+            # Pre-process file data if present
+            file_data = data.get('fileData')
+            image_part = None
+            if file_data:
+                try:
+                    # Create a Part object/dict for the image
+                    image_data = base64.b64decode(file_data['base64'])
+                    image_part = {
+                        "mime_type": file_data['type'],
+                        "data": image_data
+                    }
+                except Exception as fe:
+                    print(f"File decoding error: {fe}")
+                    return jsonify({'error': 'Invalid file data', 'msg': 'Failed to decode image file.'}), 400
+
             response_text = None
             last_error = None
-            
+
             for model_name in model_names:
                 try:
                     print(f"Trying model: {model_name}")
                     model = genai.GenerativeModel(model_name)
                     
-                    # Prepare parts (text + optional file)
-                    prompt_parts = [effective_system_prompt + "\n\nUser Message: " + last_message]
-                    
-                    if file_data:
-                        try:
-                            prompt_parts.append({
-                                'mime_type': file_data['type'],
-                                'data': file_data['base64']
-                            })
-                            print(f"Attached file: {file_data['name']} ({file_data['type']})")
-                        except Exception as fe:
-                            print(f"File processing error: {fe}")
-
                     # Generate content
-                    response = model.generate_content(prompt_parts)
-                    response_text = response.text
-                    print(f"Success with model: {model_name}")
-                    break
+                    if image_part:
+                         # Construct complex prompt with system instruction + user text + image
+                        prompt_parts = [effective_system_prompt + f"\n\nUser Message: {last_message}", image_part]
+                        response = model.generate_content(prompt_parts)
+                    else:
+                        # Use simple generate_content instead of start_chat for better compatibility
+                        full_prompt = effective_system_prompt + "\n\nUser: " + last_message
+                        response = model.generate_content(full_prompt)
+
+                    if response:
+                        try:
+                            # Standard response text access
+                            if response.text:
+                                response_text = response.text
+                            else:
+                                response_text = "I received your message but couldn't generate a text response."
+                        except Exception:
+                            # If response structure is different or blocked
+                            # Often safety filters block .text access
+                            response_text = "I'm sorry, I cannot generate a response to that input due to safety guidelines."
+                        
+                        print(f"Success with model: {model_name}")
+                        break
                 except Exception as e:
                     print(f"Failed with {model_name}: {e}")
                     last_error = e
@@ -364,29 +432,42 @@ def chat():
                             'role': 'assistant', 
                             'content': "⚠️ I'm currently experiencing high traffic and have hit my daily usage limits for AI generation. Please try again later or check your API key quotas."
                         })
-                    raise last_error
-                else:
-                    raise Exception("No suitable model found.")
+                    print(f"Final error: {last_error}")
+                    # Don't crash for safety blocks, just return the safety message if set, else error
+                
+                # Check if we set a safety message inside loop
+                if not response_text:
+                    return jsonify({'error': 'Generation failed', 'msg': 'No response generated.'}), 500
             
             # Save Assistant Response to DB
+            # Save Assistant Response to DB
             if current_user_id and chat_id:
-                chat_obj = Chat.query.get(chat_id)
-                if chat_obj and chat_obj.user_id == int(current_user_id):
-                    ai_msg_db = Message(chat_id=chat_id, role='assistant', content=response_text)
-                    db.session.add(ai_msg_db)
-                    db.session.commit()
+                try:
+                    chat_obj = Chat.query.get(chat_id)
+                    if chat_obj and chat_obj.user_id == int(current_user_id):
+                        ai_msg_db = Message(chat_id=chat_id, role='assistant', content=response_text)
+                        db.session.add(ai_msg_db)
+                        db.session.commit()
+                except Exception as db_err:
+                    print(f"Database Error (Assistant Message): {db_err}")
+                    # Non-fatal, proceed to return response
 
-                    # Sync Chat Interaction to Supabase (Synchronous as requested)
-                    if supabase:
-                        try:
-                            supabase.table('messages').insert({
-                                'user_message': last_message,
-                                'bot_reply': response_text,
-                                'created_at': datetime.utcnow().isoformat()
-                            }).execute()
-                            print("Saved to Supabase")
-                        except Exception as e:
-                            print(f"Supabase error: {e}")
+            # Sync Chat Interaction to Supabase (Synchronous as requested)
+            if supabase and current_user_id:
+                try:
+                    # Fetch user email to associate with the message
+                    user = User.query.get(current_user_id)
+                    user_email = user.email if user else "Guest"
+                    
+                    supabase.table('messages').insert({
+                        'user_email': user_email,
+                        'user_message': last_message,
+                        'bot_reply': response_text,
+                        'created_at': datetime.utcnow().isoformat()
+                    }).execute()
+                    print(f"Saved to Supabase for user: {user_email}")
+                except Exception as e:
+                    print(f"Supabase error: {e}")
 
 
 
