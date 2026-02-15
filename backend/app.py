@@ -68,13 +68,14 @@ if SUPABASE_URL and SUPABASE_KEY and create_client:
         print(f"Failed to configure Supabase: {e}")
 
 # Configure Google Gemini API
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+# Always read from environment variables (Render or local)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 if not GEMINI_API_KEY:
-    print("WARNING: GEMINI_API_KEY not found in .env file!")
-    print("Please add your API key to backend/.env file")
+    print("WARNING: GEMINI_API_KEY not found!")
 else:
+    print("GEMINI_API_KEY loaded successfully")
     genai.configure(api_key=GEMINI_API_KEY)
-    print("Google Gemini API configured successfully!")
     try:
         print("Available Gemini Models:")
         for m in genai.list_models():
