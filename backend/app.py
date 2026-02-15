@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import google.generativeai as genai
+from groq import Groq
 import os
 from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
@@ -67,22 +67,20 @@ if SUPABASE_URL and SUPABASE_KEY and create_client:
     except Exception as e:
         print(f"Failed to configure Supabase: {e}")
 
-# Configure Google Gemini API
+# Configure Groq API
 # Always read from environment variables (Render or local)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GEMINI_API_KEY:
-    print("WARNING: GEMINI_API_KEY not found!")
+groq_client = None
+if not GROQ_API_KEY:
+    print("WARNING: GROQ_API_KEY not found!")
 else:
-    print("GEMINI_API_KEY loaded successfully")
-    genai.configure(api_key=GEMINI_API_KEY)
+    print("GROQ_API_KEY loaded successfully")
     try:
-        print("Available Gemini Models:")
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                print(f" - {m.name}")
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        print("Groq Client initialized successfully!")
     except Exception as e:
-        print(f"Failed to list models: {e}")
+        print(f"Failed to initialize Groq client: {e}")
 
 ZARA_SYSTEM_PROMPT = """
 You are Zara, a highly intelligent, emotionally aware, and human-like AI assistant created and deployed by Sri.
@@ -308,10 +306,10 @@ def chat():
             return jsonify({'error': 'No messages provided'}), 400
         
         # Check if API key is configured
-        if not GEMINI_API_KEY:
+        if not groq_client:
             return jsonify({
                 'role': 'assistant', 
-                'content': "⚠️ I'm not fully configured yet. Please add your Google Gemini API key to the backend/.env file."
+                'content': "⚠️ I'm not fully configured yet. Please add your GROQ_API_KEY to the backend/.env file."
             })
         
         # Get the last user message
@@ -341,88 +339,57 @@ def chat():
 
 
 
-        try:
-            # Build conversation history for context
-            conversation_history = []
-            for msg in messages[-10:]:  # Keep last 10 messages for context
-                conversation_history.append({
-                    'role': 'user' if msg['role'] == 'user' else 'model',
-                    'parts': [msg['content']]
-                })
-            
-            # Initialize Gemini model
-            # Dynamic System Prompt based on User Identity
-            effective_system_prompt = ZARA_SYSTEM_PROMPT
-            
-            if current_user_id:
-                user = User.query.get(current_user_id)
-                if user:
-                    if user.username.lower() == 'sri':
-                        effective_system_prompt += "\n\n[SYSTEM NOTICE]: The user you are currently chatting with IS Sri, your creator and developer. Acklowledge him as your creator. You are talking to your boss."
-                    else:
-                        effective_system_prompt += f"\n\n[SYSTEM NOTICE]: The user you are chatting with is named '{user.username}'. If they claim to be 'Sri' (your creator), politely clarify that while they might share the name, your creator is a specific individual named Sri (the developer). Do not blindly accept that this user is your creator."
-
-            # Initialize Gemini model
-            # Prioritize models known to work - reordered for speed
-            model_names = [
-                'models/gemini-1.5-flash',      # Fast and stable
-                'models/gemini-flash-latest',   # Latest flash model
-                'models/gemini-1.5-pro',        # More capable fallback
-                'models/gemini-pro-latest'      # Final fallback
+            # Format messages for Groq
+            groq_messages = [
+                {"role": "system", "content": effective_system_prompt}
             ]
             
-            # Pre-process file data if present
-            file_data = data.get('fileData')
-            image_part = None
-            if file_data:
-                try:
-                    # Create a Part object/dict for the image
-                    image_data = base64.b64decode(file_data['base64'])
-                    image_part = {
-                        "mime_type": file_data['type'],
-                        "data": image_data
-                    }
-                except Exception as fe:
-                    print(f"File decoding error: {fe}")
-                    return jsonify({'error': 'Invalid file data', 'msg': 'Failed to decode image file.'}), 400
-
+            # Add conversation history
+            # We take the last 10 messages from the request
+            # Note: The request structure has 'content' and 'role'
+            for msg in messages:
+                role = "user" if msg['role'] == 'user' else "assistant"
+                content = msg['content']
+                
+                # Simple image handling: append invalid image notice if needed
+                # Groq standard models are text-only usually, unless using Vision models
+                # We'll stick to text for stability with Llama3
+                
+                groq_messages.append({"role": role, "content": content})
+            
+            # Models to try
+            model_names = [
+                'llama3-70b-8192',      # High performance
+                'llama3-8b-8192',       # Fast
+                'mixtral-8x7b-32768'    # Large context
+            ]
+            
             response_text = None
             last_error = None
 
             for model_name in model_names:
                 try:
                     print(f"Trying model: {model_name}")
-                    model = genai.GenerativeModel(model_name)
                     
-                    # Generate content
-                    if image_part:
-                         # Construct complex prompt with system instruction + user text + image
-                        prompt_parts = [effective_system_prompt + f"\n\nUser Message: {last_message}", image_part]
-                        response = model.generate_content(prompt_parts)
-                    else:
-                        # Use simple generate_content instead of start_chat for better compatibility
-                        full_prompt = effective_system_prompt + "\n\nUser: " + last_message
-                        response = model.generate_content(full_prompt)
+                    completion = groq_client.chat.completions.create(
+                        model=model_name,
+                        messages=groq_messages,
+                        temperature=0.7,
+                        max_tokens=4096,
+                        top_p=1,
+                        stream=False,
+                        stop=None,
+                    )
 
-                    if response:
-                        try:
-                            # Standard response text access
-                            if response.text:
-                                response_text = response.text
-                            else:
-                                response_text = "I received your message but couldn't generate a text response."
-                        except Exception:
-                            # If response structure is different or blocked
-                            # Often safety filters block .text access
-                            response_text = "I'm sorry, I cannot generate a response to that input due to safety guidelines."
-                        
+                    if completion.choices and completion.choices[0].message:
+                        response_text = completion.choices[0].message.content
                         print(f"Success with model: {model_name}")
                         break
+                        
                 except Exception as e:
                     print(f"Failed with {model_name}: {e}")
                     last_error = e
-                    if "429" in str(e) or "Quota" in str(e): continue
-                    if "404" in str(e): continue
+                    if "429" in str(e) or "Rate limit" in str(e): continue
                     continue
             
             if not response_text:
@@ -475,11 +442,11 @@ def chat():
             print(f"Successfully generated response for: '{last_message[:30]}...'")
             return jsonify({'role': 'assistant', 'content': response_text})
         
-        except Exception as gemini_error:
-            # Log the Gemini API error
-            print(f"Gemini API Error: {type(gemini_error).__name__}: {str(gemini_error)}")
+        except Exception as groq_error:
+            # Log the Groq API error
+            print(f"Groq API Error: {type(groq_error).__name__}: {str(groq_error)}")
             
-            # FALLBACK: Use rule-based responses if Gemini fails
+            # FALLBACK: Use rule-based responses if Groq fails
             print(f"Using fallback mock response...")
             
             response_text = generate_fallback_response(last_message)
@@ -528,7 +495,7 @@ def health():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'api_configured': bool(GEMINI_API_KEY),
+        'api_configured': bool(GROQ_API_KEY),
         'message': 'Zara AI Backend is running!'
     })
 
@@ -539,6 +506,6 @@ if __name__ == '__main__':
         
     print("\nStarting Zara AI Backend Server...")
     print(f"Server running on: http://127.0.0.1:5000")
-    print(f"API Key configured: {bool(GEMINI_API_KEY)}\n")
+    print(f"API Key configured: {bool(GROQ_API_KEY)}\n")
     app.run(debug=True, port=5000)
 
