@@ -7,3 +7,4 @@ google-generativeai
 flask-sqlalchemy
 flask-bcrypt
 flask-jwt-extended
+gunicorn
