@@ -475,7 +475,7 @@ def generate_fallback_response(message):
     message_lower = message.lower()
     
     if 'hello' in message_lower or 'hi' in message_lower:
-        return "Hello! It's wonderful to meet you. I'm Zara, created by Sri. How are you feeling today? (Note: Currently using fallback mode - please check your Gemini API key)"
+        return "Hello! It's wonderful to meet you. I'm Zara, created by Sri. How are you feeling today? (Note: Currently using fallback mode - please check your Groq API key)"
     elif 'who are you' in message_lower or 'your name' in message_lower:
         return "I'm Zara, a friendly and intelligent AI assistant created by Sri. I'm here to help you with anything from coding to emotional support. (Currently in fallback mode)"
     elif 'sri' in message_lower:
@@ -493,11 +493,11 @@ def greet(name):
 print(greet("User"))
 ```
 
-Let me know if you need something more specific! (Note: Full AI responses require valid Gemini API key)"""
+Let me know if you need something more specific! (Note: Full AI responses require valid Groq API key)"""
     elif any(word in message_lower for word in ['sad', 'frustrated', 'stressed', 'upset']):
         return "I'm so sorry to hear you're feeling that way. It's completely normal to have tough days. I'm here to listen if you want to talk about it, or we can focus on something else to help you reset. You're doing great. ❤️"
     else:
-        return f"That's interesting! I'm listening. Tell me more about '{message[:30]}...' I'm currently in fallback mode, so for full AI capabilities, please ensure your Google Gemini API key is properly configured."
+        return f"That's interesting! I'm listening. Tell me more about '{message[:30]}...' I'm currently in fallback mode, so for full AI capabilities, please ensure your Groq API key is properly configured."
 
 @app.route('/health', methods=['GET'])
 def health():
