@@ -43,6 +43,10 @@ db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
+# Initialize DB tables for production/render environments where __main__ block isn't run
+with app.app_context():
+    db.create_all()
+
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
     return jsonify({'error': 'Session expired', 'msg': 'Token has expired'}), 401
@@ -405,7 +409,12 @@ def chat():
                 
                 # Check if we set a safety message inside loop
                 if not response_text:
-                    return jsonify({'error': 'Generation failed', 'msg': 'No response generated.'}), 500
+                    print("Groq generation failed. Using fallback response.")
+                    response_text = generate_fallback_response(last_message)
+                    return jsonify({
+                        'role': 'assistant',
+                        'content': response_text + "\n\n*(Note: Running in Fallback Mode due to API error)*"
+                    })
             
             # Save Assistant Response to DB
             # Save Assistant Response to DB
@@ -509,7 +518,7 @@ if __name__ == '__main__':
         print("Database initialized!")
         
     print("\nStarting Zara AI Backend Server...")
-    print(f"Server running on: http://127.0.0.1:5000")
+    print(f"Server is running!")
     print(f"API Key configured: {bool(GROQ_API_KEY)}\n")
     app.run(debug=True, port=5000)
 
