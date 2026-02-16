@@ -347,6 +347,9 @@ def update_chat(chat_id):
 @app.route('/api/chat', methods=['POST'])
 @jwt_required(optional=True) # Optional so guest users can still chat (if you want)
 def chat():
+    print(f"--- DIAGNOSTIC ---")
+    print(f"Checking Environment: CEREBRAS_KEY={bool(os.getenv('CEREBRAS_API_KEY'))}, SUPABASE_URL={bool(os.getenv('SUPABASE_URL'))}")
+    print(f"------------------")
     try:
         data = request.json
         print(f"Chat request received (data keys): {list(data.keys())}")
