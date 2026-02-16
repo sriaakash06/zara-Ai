@@ -34,7 +34,10 @@ def not_found(error):
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50MB limit
 
 # Database Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///zara.db'
+# Use absolute path for safety on Render
+basedir = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(basedir, 'zara.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key-change-me')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600 * 24 * 30  # 30 days in seconds
@@ -43,9 +46,21 @@ db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
-# Initialize DB tables for production/render environments where __main__ block isn't run
-with app.app_context():
-    db.create_all()
+# Initialize DB tables for production/render environments
+# Only create if doesn't exist to speed up boot and avoid locking
+print(f"Checking database at: {db_path}")
+if not os.path.exists(db_path):
+    print("Database file not found. Creating tables...")
+    with app.app_context():
+        try:
+            db.create_all()
+            print("Database tables created successfully!")
+        except Exception as e:
+            print(f"Error creating database tables: {e}")
+else:
+    print("Database file exists. Skipping creation.")
+
+print("App initialization complete. Ready to handle requests.")
 
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
