@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from groq import Groq
+from cerebras.cloud.sdk import Cerebras
 import os
 from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
@@ -71,20 +71,20 @@ if SUPABASE_URL and SUPABASE_KEY and create_client:
     except Exception as e:
         print(f"Failed to configure Supabase: {e}")
 
-# Configure Groq API
+# Configure Cerebras API
 # Always read from environment variables (Render or local)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 
-groq_client = None
-if not GROQ_API_KEY:
-    print("WARNING: GROQ_API_KEY not found!")
+cerebras_client = None
+if not CEREBRAS_API_KEY:
+    print("WARNING: CEREBRAS_API_KEY not found!")
 else:
-    print("GROQ_API_KEY loaded successfully")
+    print("CEREBRAS_API_KEY loaded successfully")
     try:
-        groq_client = Groq(api_key=GROQ_API_KEY)
-        print("Groq Client initialized successfully!")
+        cerebras_client = Cerebras(api_key=CEREBRAS_API_KEY)
+        print("Cerebras Client initialized successfully!")
     except Exception as e:
-        print(f"Failed to initialize Groq client: {e}")
+        print(f"Failed to initialize Cerebras client: {e}")
 
 ZARA_SYSTEM_PROMPT = """
 You are Zara, a highly intelligent, emotionally aware, and human-like AI assistant created and deployed by Sri.
@@ -310,10 +310,10 @@ def chat():
             return jsonify({'error': 'No messages provided'}), 400
         
         # Check if API key is configured
-        if not groq_client:
+        if not cerebras_client:
             return jsonify({
                 'role': 'assistant', 
-                'content': "⚠️ I'm not fully configured yet. Please add your GROQ_API_KEY to the backend/.env file."
+                'content': "⚠️ I'm not fully configured yet. Please add your CEREBRAS_API_KEY to the backend/.env file."
             })
         
         # Get the last user message
@@ -343,8 +343,8 @@ def chat():
 
 
         try:
-            # Format messages for Groq
-            groq_messages = [
+            # Format messages for Cerebras
+            cerebras_messages = [
                 {"role": "system", "content": ZARA_SYSTEM_PROMPT}
             ]
             
@@ -356,16 +356,14 @@ def chat():
                 content = msg['content']
                 
                 # Simple image handling: append invalid image notice if needed
-                # Groq standard models are text-only usually, unless using Vision models
-                # We'll stick to text for stability with Llama3
+                # Cerebras standard models are text-only usually
                 
-                groq_messages.append({"role": role, "content": content})
+                cerebras_messages.append({"role": role, "content": content})
             
-            # Models to try
+            # Models to try (Cerebras supported models)
             model_names = [
-                'llama3-70b-8192',      # High performance
-                'llama3-8b-8192',       # Fast
-                'mixtral-8x7b-32768'    # Large context
+                'llama3.1-70b',      # High performance
+                'llama3.1-8b',       # Fast
             ]
             
             response_text = None
@@ -375,14 +373,13 @@ def chat():
                 try:
                     print(f"Trying model: {model_name}")
                     
-                    completion = groq_client.chat.completions.create(
+                    completion = cerebras_client.chat.completions.create(
                         model=model_name,
-                        messages=groq_messages,
+                        messages=cerebras_messages,
                         temperature=0.7,
                         max_tokens=4096,
                         top_p=1,
                         stream=False,
-                        stop=None,
                     )
 
                     if completion.choices and completion.choices[0].message:
@@ -493,18 +490,18 @@ def greet(name):
 print(greet("User"))
 ```
 
-Let me know if you need something more specific! (Note: Full AI responses require valid Groq API key)"""
+Let me know if you need something more specific! (Note: Full AI responses require valid Cerebras API key)"""
     elif any(word in message_lower for word in ['sad', 'frustrated', 'stressed', 'upset']):
         return "I'm so sorry to hear you're feeling that way. It's completely normal to have tough days. I'm here to listen if you want to talk about it, or we can focus on something else to help you reset. You're doing great. ❤️"
     else:
-        return f"That's interesting! I'm listening. Tell me more about '{message[:30]}...' I'm currently in fallback mode, so for full AI capabilities, please ensure your Groq API key is properly configured."
+        return f"That's interesting! I'm listening. Tell me more about '{message[:30]}...' I'm currently in fallback mode, so for full AI capabilities, please ensure your Cerebras API key is properly configured."
 
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'api_configured': bool(GROQ_API_KEY),
+        'api_configured': bool(CEREBRAS_API_KEY),
         'message': 'Zara AI Backend is running!'
     })
 
@@ -519,7 +516,7 @@ if __name__ == '__main__':
         
     print("\nStarting Zara AI Backend Server...")
     print(f"Server is running!")
-    print(f"API Key configured: {bool(GROQ_API_KEY)}\n")
+    print(f"API Key configured: {bool(CEREBRAS_API_KEY)}\n")
     app.run(debug=True, port=5000)
 
 
