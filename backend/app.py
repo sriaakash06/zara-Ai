@@ -47,20 +47,30 @@ bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 # Initialize DB tables for production/render environments
-# Only create if doesn't exist to speed up boot and avoid locking
-print(f"Checking database at: {db_path}")
-if not os.path.exists(db_path):
-    print("Database file not found. Creating tables...")
-    with app.app_context():
-        try:
-            db.create_all()
-            print("Database tables created successfully!")
-        except Exception as e:
-            print(f"Error creating database tables: {e}")
-else:
-    print("Database file exists. Skipping creation.")
+# We use a flag to track if we've initialized to avoid overhead on every request
+is_db_initialized = False
 
-print("App initialization complete. Ready to handle requests.")
+def init_db_if_needed():
+    global is_db_initialized
+    if is_db_initialized:
+        return
+
+    # Use absolute path for safety on Render
+    print(f"Checking database at: {db_path}")
+    if not os.path.exists(db_path):
+        print("Database file not found. Creating tables...")
+        with app.app_context():
+            try:
+                db.create_all()
+                print("Database tables created successfully!")
+                is_db_initialized = True
+            except Exception as e:
+                print(f"Error creating database tables: {e}")
+    else:
+        print("Database file exists. Skipping creation.")
+        is_db_initialized = True
+
+print("App loaded. Database will compile on first request.")
 
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
@@ -523,6 +533,11 @@ def health():
 @app.route('/api/health', methods=['GET'])
 def api_health():
     return health()
+
+@app.before_request
+def before_request_func():
+    # Ensure DB is ready before handling any request
+    init_db_if_needed()
 
 if __name__ == '__main__':
     with app.app_context():
