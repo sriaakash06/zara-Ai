@@ -406,7 +406,7 @@ def chat():
                 
                 # Check if we set a safety message inside loop
                 if not response_text:
-                    print("Groq generation failed. Using fallback response.")
+                    print("Cerebras generation failed. Using fallback response.")
                     response_text = generate_fallback_response(last_message)
                     return jsonify({
                         'role': 'assistant',
@@ -448,11 +448,11 @@ def chat():
             print(f"Successfully generated response for: '{last_message[:30]}...'")
             return jsonify({'role': 'assistant', 'content': response_text})
         
-        except Exception as groq_error:
-            # Log the Groq API error
-            print(f"Groq API Error: {type(groq_error).__name__}: {str(groq_error)}")
+        except Exception as cerebras_error:
+            # Log the Cerebras API error
+            print(f"Cerebras API Error: {type(cerebras_error).__name__}: {str(cerebras_error)}")
             
-            # FALLBACK: Use rule-based responses if Groq fails
+            # FALLBACK: Use rule-based responses if Cerebras fails
             print(f"Using fallback mock response...")
             
             response_text = generate_fallback_response(last_message)
@@ -468,11 +468,11 @@ def chat():
         }), 500
 
 def generate_fallback_response(message):
-    """Fallback mock responses when Gemini API is not available"""
+    """Fallback mock responses when Cerebras API is not available"""
     message_lower = message.lower()
     
     if 'hello' in message_lower or 'hi' in message_lower:
-        return "Hello! It's wonderful to meet you. I'm Zara, created by Sri. How are you feeling today? (Note: Currently using fallback mode - please check your Groq API key)"
+        return "Hello! It's wonderful to meet you. I'm Zara, created by Sri. How are you feeling today? (Note: Currently using fallback mode - please check your Cerebras API key)"
     elif 'who are you' in message_lower or 'your name' in message_lower:
         return "I'm Zara, a friendly and intelligent AI assistant created by Sri. I'm here to help you with anything from coding to emotional support. (Currently in fallback mode)"
     elif 'sri' in message_lower:
