@@ -209,6 +209,7 @@ def register():
                     supabase.table('users').insert({
                         'username': username,
                         'email': email,
+                        'password_hash': hashed_password,
                         'created_at': datetime.utcnow().isoformat()
                     }).execute()
                     print(f"User {email} synced to Supabase")
@@ -235,6 +236,26 @@ def login():
     password = data.get('password')
 
     user = User.query.filter_by(email=email).first()
+
+    # If user not found locally (Render reset), check Supabase
+    if not user and supabase:
+        try:
+            print(f"User {email} not found locally. Checking Supabase...")
+            sb_response = supabase.table('users').select('*').eq('email', email).execute()
+            if sb_response.data:
+                sb_user = sb_response.data[0]
+                # Restore user to local DB
+                new_user = User(
+                    username=sb_user['username'],
+                    email=sb_user['email'],
+                    password=sb_user.get('password_hash')
+                )
+                db.session.add(new_user)
+                db.session.commit()
+                user = new_user
+                print(f"User {email} restored from Supabase!")
+        except Exception as e:
+            print(f"Supabase Login Recovery Error: {e}")
 
     if user and bcrypt.check_password_hash(user.password, password):
         access_token = create_access_token(identity=str(user.id))
@@ -462,6 +483,7 @@ def chat():
                         user_email = user.email if user else "Guest"
                         supabase.table('messages').insert({
                             'user_email': user_email,
+                            'username': user.username if user else "Guest", # Added username sync
                             'user_message': last_message,
                             'bot_reply': response_text,
                             'created_at': datetime.utcnow().isoformat()
