@@ -338,7 +338,7 @@ def chat():
             return jsonify({'error': 'Database error', 'msg': f'Failed to save message: {str(db_err)}'}), 500
 
 
-
+        try:
             # Format messages for Groq
             groq_messages = [
                 {"role": "system", "content": ZARA_SYSTEM_PROMPT}
