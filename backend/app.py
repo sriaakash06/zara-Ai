@@ -22,7 +22,7 @@ except ImportError:
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, origins=["*"])
 @app.errorhandler(500)
 def internal_error(error):
     return jsonify({'error': 'Internal Server Error', 'msg': str(error)}), 500
@@ -499,6 +499,10 @@ def health():
         'message': 'Zara AI Backend is running!'
     })
 
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    return health()
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
@@ -508,4 +512,5 @@ if __name__ == '__main__':
     print(f"Server running on: http://127.0.0.1:5000")
     print(f"API Key configured: {bool(GROQ_API_KEY)}\n")
     app.run(debug=True, port=5000)
+
 
