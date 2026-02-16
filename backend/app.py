@@ -202,17 +202,20 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         
-        # Sync to Supabase (Optional)
+        # Sync to Supabase in background
         if supabase:
-            try:
-                supabase.table('users').insert({
-                    'username': username,
-                    'email': email,
-                    'created_at': datetime.utcnow().isoformat()
-                }).execute()
-                print(f"User {email} synced to Supabase")
-            except Exception as se:
-                print(f"Supabase Sync Error (Register): {se}")
+            def sync_user():
+                try:
+                    supabase.table('users').insert({
+                        'username': username,
+                        'email': email,
+                        'created_at': datetime.utcnow().isoformat()
+                    }).execute()
+                    print(f"User {email} synced to Supabase")
+                except Exception as se:
+                    print(f"Supabase Sync Error (Register): {se}")
+            
+            threading.Thread(target=sync_user).start()
 
         # Auto login after register
         access_token = create_access_token(identity=str(new_user.id))
@@ -451,22 +454,23 @@ def chat():
                     print(f"Database Error (Assistant Message): {db_err}")
                     # Non-fatal, proceed to return response
 
-            # Sync Chat Interaction to Supabase (Synchronous as requested)
+            # Sync Chat Interaction to Supabase (Background Thread)
             if supabase and current_user_id:
-                try:
-                    # Fetch user email to associate with the message
-                    user = User.query.get(current_user_id)
-                    user_email = user.email if user else "Guest"
-                    
-                    supabase.table('messages').insert({
-                        'user_email': user_email,
-                        'user_message': last_message,
-                        'bot_reply': response_text,
-                        'created_at': datetime.utcnow().isoformat()
-                    }).execute()
-                    print(f"Saved to Supabase for user: {user_email}")
-                except Exception as e:
-                    print(f"Supabase error: {e}")
+                def sync_message():
+                    try:
+                        user = User.query.get(current_user_id)
+                        user_email = user.email if user else "Guest"
+                        supabase.table('messages').insert({
+                            'user_email': user_email,
+                            'user_message': last_message,
+                            'bot_reply': response_text,
+                            'created_at': datetime.utcnow().isoformat()
+                        }).execute()
+                        print(f"Saved to Supabase for user: {user_email}")
+                    except Exception as e:
+                        print(f"Supabase error: {e}")
+                
+                threading.Thread(target=sync_message).start()
 
 
 
@@ -541,6 +545,8 @@ def api_health():
 
 @app.before_request
 def before_request_func():
+    # Print every request for debugging Render connectivity
+    print(f"Incoming Request: {request.method} {request.path}")
     # Ensure DB is ready before handling any request
     init_db_if_needed()
 
