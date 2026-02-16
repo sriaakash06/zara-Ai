@@ -3,7 +3,7 @@ flask
 flask-cors
 python-dotenv
 openai 
-groq
+cerebras-cloud-sdk
 flask-sqlalchemy
 flask-bcrypt
 flask-jwt-extended
