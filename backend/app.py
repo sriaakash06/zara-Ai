@@ -341,7 +341,7 @@ def chat():
 
             # Format messages for Groq
             groq_messages = [
-                {"role": "system", "content": effective_system_prompt}
+                {"role": "system", "content": ZARA_SYSTEM_PROMPT}
             ]
             
             # Add conversation history
