@@ -521,6 +521,11 @@ Let me know if you need something more specific! (Note: Full AI responses requir
     else:
         return f"That's interesting! I'm listening. Tell me more about '{message[:30]}...' I'm currently in fallback mode, so for full AI capabilities, please ensure your Cerebras API key is properly configured."
 
+@app.route('/', methods=['GET'])
+def index():
+    """Root endpoint for Render health check"""
+    return health()
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
