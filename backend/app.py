@@ -487,22 +487,36 @@ def chat():
 
             # Sync Chat Interaction to Supabase (Background Thread)
             if supabase and current_user_id:
-                def sync_message():
-                    try:
-                        user = User.query.get(current_user_id)
-                        user_email = user.email if user else "Guest"
-                        supabase.table('messages').insert({
-                            'user_email': user_email,
-                            'username': user.username if user else "Guest", # Added username sync
-                            'user_message': last_message,
-                            'bot_reply': response_text,
-                            'created_at': datetime.utcnow().isoformat()
-                        }).execute()
-                        print(f"Saved to Supabase for user: {user_email}")
-                    except Exception as e:
-                        print(f"Supabase error: {e}")
-                
-                threading.Thread(target=sync_message).start()
+                try:
+                    # Fetch user info in current thread before starting background thread
+                    user = User.query.get(current_user_id)
+                    u_email = user.email if user else "Guest"
+                    u_name = user.username if user else "Guest"
+                    
+                    def sync_message(email, name, msg, reply):
+                        try:
+                            # Use the data passed from the main thread
+                            supabase.table('messages').insert({
+                                'user_email': email,
+                                'username': name,
+                                'user_message': msg,
+                                'bot_reply': reply,
+                                'created_at': datetime.utcnow().isoformat()
+                            }).execute()
+                            print(f"✅ SUCCESSFULLY synced to Supabase for: {email}")
+                        except Exception as e:
+                            print(f"❌ Supabase Sync Error: {e}")
+                    
+                    # Start thread and pass variables to avoid context issues
+                    thread = threading.Thread(
+                        target=sync_message, 
+                        args=(u_email, u_name, last_message, response_text)
+                    )
+                    thread.daemon = True
+                    thread.start()
+                    
+                except Exception as thread_setup_err:
+                    print(f"⚠️ Could not setup Supabase sync thread: {thread_setup_err}")
 
 
 
