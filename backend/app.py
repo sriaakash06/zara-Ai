@@ -21,6 +21,8 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
+app = Flask(__name__)
+
 # Enable CORS with explicit settings for Production
 CORS(app, resources={
     r"/api/*": {
