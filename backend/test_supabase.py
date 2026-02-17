@@ -14,18 +14,15 @@ try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
     print("Client created.")
     
-    test_data = {
-        'user_message': 'Debug Sync Test',
+    print("Attempting insert into messages...")
+    test_message = {
+        'user_email': 'test@example.com',
+        'user_message': 'Debug Sync Test - ' + str(os.urandom(4).hex()),
         'bot_reply': 'Response from Zara'
     }
-    
-    print("Attempting insert...")
-    response = supabase.table('messages').insert(test_data).execute()
-    
-    print("--- RESPONSE DATA ---")
-    print(response.data)
-    print("--- FULL RESPONSE ---")
-    print(response)
+    response = supabase.table('messages').insert(test_message).execute()
+    print("Messages insert success!")
+    print(f"Data saved: {response.data}")
 
 except Exception as e:
     print(f"CRITICAL ERROR: {e}")

@@ -1,0 +1,43 @@
+﻿python : Traceback (most 
+recent call last):
+At line:1 char:1
++ python 
+backend/test_supabase.py > bac
+kend/test_supabase_output.txt 
+2> ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (Traceback  
+   (most recent call last):   
+ :String) [], RemoteExcept    
+ion
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+  File "D:\Project-Files\Zara-
+Chatbot\backend\test_supabase.
+py", line 33, in <module>
+    response = supabase.table(
+'users').insert(test_user).exe
+cute()
+  File "C:\Users\WELCOME\AppDa
+ta\Local\Programs\Python\Pytho
+n310\lib\site-packages\postgre
+st\_sync\request_builder.py", 
+line 53, in execute
+    raise 
+APIError(dict(json_obj))
+postgrest.exceptions.APIError:
+ {'message': "Could not find 
+the 'password_hash' column of 
+'users' in the schema cache", 
+'code': 'PGRST204', 'hint': 
+None, 'details': None}
+URL: https://qnxzoijsoxwrlzrrwcsv.supabase.co
+Client created.
+Attempting insert into messages (without username)...
+Messages insert success!
+Attempting insert into users with password_hash...
+CRITICAL ERROR: {'message': "Could not find the 'password_hash' column of 'users' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}

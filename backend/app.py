@@ -216,7 +216,7 @@ def register():
                     supabase.table('users').insert({
                         'username': username,
                         'email': email,
-                        'password_hash': hashed_password,
+                        # 'password_hash': hashed_password, # Removed as this column doesn't exist in Supabase
                         'created_at': datetime.utcnow().isoformat()
                     }).execute()
                     print(f"User {email} synced to Supabase")
@@ -500,7 +500,7 @@ def chat():
                             # Use the data passed from the main thread
                             supabase.table('messages').insert({
                                 'user_email': email,
-                                'username': name,
+                                # 'username': name, # Removed as this column doesn't exist in Supabase
                                 'user_message': msg,
                                 'bot_reply': reply,
                                 'created_at': datetime.utcnow().isoformat()
