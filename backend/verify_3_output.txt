@@ -1,4 +1,4 @@
-Testing model: gemini-flash-latest
+Testing model: cerebras-flash-latest
 Success! Response: Hello! I hear you loud and clear. How can I assist you today?
 
 --- Done ---

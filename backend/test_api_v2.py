@@ -16,10 +16,10 @@ print(f"Testing with API Key: {api_key[:10]}...")
 try:
     client = Cerebras(api_key=api_key)
     
-    print("Attempting to generate with llama3.1-8b...")
+    print("Attempting to generate with cerebras-flash-latest...")
     response = client.chat.completions.create(
         messages=[{"role": "user", "content": "Hello"}],
-        model="llama3.1-8b",
+        model="cerebras-flash-latest",
     )
     print("SUCCESS: Cerebras works!")
     print(f"Response: {response.choices[0].message.content}")

@@ -24,7 +24,7 @@ try:
         messages=[
             {"role": "user", "content": "Say hello in one sentence"}
         ],
-        model="llama3.1-8b",
+        model="cerebras-flash-latest",
     )
     
     print("=" * 50)

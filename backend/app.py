@@ -420,9 +420,11 @@ def chat():
                 cerebras_messages.append({"role": role, "content": content})
             
             # Models to try (Cerebras supported models)
-            # 'llama3.1-70b' seems to be causing 404s for some keys, so we default to 8b which is working
+            # 'cerebras-flash-latest' is the new high-speed model optimized for WSE-3
             model_names = [
-                'llama3.1-8b',       # Fast and Reliable
+                'cerebras-flash-latest', # Fastest and Reliable
+                'llama-3.3-70b',        # Flagship Large Model
+                'llama3.1-8b',          # Standard Small Model
             ]
             
             response_text = None

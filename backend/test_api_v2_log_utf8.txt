@@ -1,0 +1,24 @@
+﻿python : C:\Users\WELCOME\AppData\Local\Programs\Python\Python310\lib\site-packages\google\api_core\_python_version_su
+pport.py:275: FutureWarning: You are using a Python version (3.10.11) which Google will stop supporting in new 
+releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python 
+version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+At line:1 char:1
++ python backend/test_api_v2.py > backend/test_api_v2_log.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\WELCOM...past that date.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warnings.warn(message, FutureWarning)
+D:\Project-Files\Zara-Chatbot\backend\test_api_v2.py:4: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+Testing with API Key: AIzaS...0IjCA
+Attempting to generate with cerebras-flash-latest...
+SUCCESS: cerebras-flash-latest works!
+Response: Hello! How can I help you today?

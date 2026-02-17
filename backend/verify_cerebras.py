@@ -21,7 +21,7 @@ try:
         messages=[
             {"role": "user", "content": "Hello, are you working?"}
         ],
-        model="llama3.1-8b",
+        model="cerebras-flash-latest",
     )
     
     print("\nSuccess! Response:")
