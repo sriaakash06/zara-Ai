@@ -24,7 +24,7 @@ sys.stdout = Tee('list_models_output.txt', 'w')
 
 load_dotenv()
 
-api_key = os.getenv('GEMINI_API_KEY')
+api_key = os.getenv('CEREBRAS_API_KEY')
 print(f"API Key present: {bool(api_key)}")
 
 if not api_key:

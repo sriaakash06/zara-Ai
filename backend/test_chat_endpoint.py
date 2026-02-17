@@ -2,7 +2,7 @@ import requests
 import json
 import traceback
 
-url = "http://127.0.0.1:5000/api/chat"
+url = "https://zara-chatbot-365f-465f.supabase.co/api/chat"
 headers = {"Content-Type": "application/json"}
 data = {
     "messages": [{"role": "user", "content": "Hello"}],

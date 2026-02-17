@@ -76,7 +76,7 @@ http://localhost:3080
 - **Flask REST API**: Handles chat requests at `/api/chat`
 - **CORS Enabled**: Allows frontend-backend communication
 - **Zara Persona**: Emotionally intelligent AI assistant logic
-- **Extensible**: Ready to integrate with OpenAI/Gemini APIs
+- **Extensible**: Ready to integrate with Cerebras/OpenAI APIs
 
 ### Frontend
 - **Next.js 14**: App Router with TypeScript
@@ -113,7 +113,7 @@ And update the frontend API URL in `zara-chatbot/src/app/page.tsx`:
 const response = await fetch('http://127.0.0.1:5000/api/chat', {
 ```
 
-## 🔌 Integrating Real AI (OpenAI/Gemini)
+## 🔌 Integrating Real AI (Cerebras/OpenAI)
 
 Currently, the backend uses **rule-based logic** for demo purposes. To integrate a real LLM:
 
@@ -134,16 +134,21 @@ response = openai.ChatCompletion.create(
 response_text = response.choices[0].message.content
 ```
 
-### Option 2: Google Gemini
+### Option 2: Cerebras
 ```python
 # backend/app.py
-import google.generativeai as genai
+from cerebras.cloud.sdk import Cerebras
 
-genai.configure(api_key="your-api-key")
-model = genai.GenerativeModel('gemini-pro')
+client = Cerebras(api_key="your-api-key")
 
-response = model.generate_content(last_message)
-response_text = response.text
+completion = client.chat.completions.create(
+    model="llama3.1-8b",
+    messages=[
+        {"role": "system", "content": ZARA_SYSTEM_PROMPT},
+        *messages
+    ]
+)
+response_text = completion.choices[0].message.content
 ```
 
 ## 📝 Current Status
@@ -165,7 +170,7 @@ response_text = response.text
 
 1. **Test the Application**: Open http://localhost:3080 in your browser
 2. **Send Messages**: Try "Hello", "Who are you?", "Help me with Java code"
-3. **Integrate Real AI**: Add OpenAI or Gemini API key
+3. **Integrate Real AI**: Add Cerebras or OpenAI API key
 4. **Add Database**: Store chat history with SQLite/PostgreSQL
 5. **User Authentication**: Add login system with JWT
 6. **Deploy**: Host on Vercel (frontend) + Railway/Render (backend)

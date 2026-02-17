@@ -7,25 +7,25 @@ Your Zara AI Chatbot is **READY** and both servers are running!
 - **Backend (Flask)**: http://127.0.0.1:5000 ✅ (Running for 18+ minutes)
 - **Frontend (Next.js)**: http://localhost:3080 ✅ (Running for 1h35m+)
 
-## 🔑 IMPORTANT: Add Your Google Gemini API Key
+## 🔑 IMPORTANT: Add Your Cerebras API Key
 
 ### Step 1: Get Your API Key
-1. Visit: https://aistudio.google.com/app/apikey
-2. Sign in with your Google account
-3. Click **"Get API Key"** or **"Create API Key"**
-4. Copy the generated API key
+1. Visit: https://cloud.cerebras.ai/
+2. Sign in or create an account
+3. Navigate to **API Keys**
+4. Copy your **CEREBRAS_API_KEY**
 
 ### Step 2: Add API Key to Your Project
 Open the file: `backend/.env`
 
 Replace:
 ```env
-GEMINI_API_KEY=your_api_key_here
+CEREBRAS_API_KEY=your_api_key_here
 ```
 
 With your actual API key:
 ```env
-GEMINI_API_KEY=AIzaSyD7xxxxxxxxxxxxxxxxxxxxxxxxxxx
+CEREBRAS_API_KEY=csk-v3r9vev3m...
 ```
 
 ### Step 3: Restart the Backend
@@ -39,7 +39,7 @@ After adding your API key:
 
 You should see:
 ```
-✅ Google Gemini API configured successfully!
+✅ Cerebras API configured successfully!
 🚀 Starting Zara AI Backend Server...
 📡 Server running on: http://127.0.0.1:5000
 🔑 API Key configured: True
@@ -94,7 +94,7 @@ npx next dev -p 3090
 ```
 Zara-Chatbot/
 ├── backend/
-│   ├── app.py           # Flask server with Gemini AI
+│   ├── app.py           # Flask server with Cerebras AI
 │   ├── .env            # 🔑 Your API key goes here!
 │   └── requirements.txt
 │
@@ -111,11 +111,11 @@ Zara-Chatbot/
 - **Dark Theme**: Modern ChatGPT-style interface
 - **Sidebar**: Chat history and profile
 - **Real-time Typing**: Animated indicators
-- **Smart Responses**: Powered by Google Gemini AI
+- **Smart Responses**: Powered by Cerebras AI
 
 ## 📝 Current Configuration
 
-- **AI Model**: Google Gemini 1.5 Flash
+- **AI Model**: Llama-3.1-8b (via Cerebras)
 - **System Prompt**: Zara personality (emotionally intelligent)
 - **Context Window**: Last 10 messages
 - **Response Style**: Friendly, warm, professional
@@ -134,9 +134,9 @@ Zara-Chatbot/
 ## 💡 Tips
 
 - **Conversations are not saved** (currently) - they reset on page refresh
-- **API costs**: Gemini API is free for testing (with rate limits)
+- **API costs**: Cerebras API offers a generous free tier for developers
 - **Security**: Never commit `.env` file to Git (already in `.gitignore`)
 
 ---
 
-**Created by Sri** | Powered by Google Gemini AI 🤖
+**Created by Sri** | Powered by Cerebras AI 🚀
