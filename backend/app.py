@@ -21,18 +21,21 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
-# Enable CORS for the Vercel frontend and common headers
+# Enable CORS with explicit settings for Production
 CORS(app, resources={
     r"/api/*": {
         "origins": ["https://zara-ai-sri.vercel.app", "http://localhost:3000", "http://localhost:3005"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin"],
+        "supports_credentials": True
     }
 })
+
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({'error': 'Internal Server Error', 'msg': str(error)}), 500
+    print(f"Server Error: {error}")
+    response = jsonify({'error': 'Internal Server Error', 'msg': str(error)})
+    return response, 500
 
 @app.errorhandler(404)
 def not_found(error):
@@ -279,6 +282,14 @@ def login():
 def get_current_user():
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
+    
+    # If user not found locally (Render reset), try to restore via email from JWT if possible
+    # but since ID might change on reset, we usually identify by email.
+    # For now, let's at least try the Supabase check if we can't find the user.
+    if not user and supabase:
+        print(f"User ID {current_user_id} not found locally. Session may need re-login or restoration.")
+        return jsonify({'error': 'User not found', 'msg': 'Please login again to sync your account.'}), 404
+        
     if not user:
         return jsonify({'error': 'User not found'}), 404
     return jsonify(user.to_dict()), 200
