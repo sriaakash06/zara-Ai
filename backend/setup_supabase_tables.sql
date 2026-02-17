@@ -10,6 +10,7 @@ CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    password_hash TEXT, -- Added for sync restoration
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -17,6 +18,7 @@ CREATE TABLE users (
 CREATE TABLE messages (
     id BIGSERIAL PRIMARY KEY,
     user_email TEXT NOT NULL,
+    username TEXT, -- Added for sync analytics
     user_message TEXT NOT NULL,
     bot_reply TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()

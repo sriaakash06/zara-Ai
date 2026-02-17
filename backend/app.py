@@ -22,7 +22,14 @@ except ImportError:
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=["*"])
+# Enable CORS for the Vercel frontend and common headers
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["https://zara-ai-sri.vercel.app", "http://localhost:3000", "http://localhost:3005"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 @app.errorhandler(500)
 def internal_error(error):
     return jsonify({'error': 'Internal Server Error', 'msg': str(error)}), 500

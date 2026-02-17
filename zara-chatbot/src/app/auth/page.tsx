@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Mail, Lock, User, ArrowRight, Loader2, Rocket, RotateCcw, Eye, EyeOff, Check, X } from 'lucide-react';
-import { setAuthToken, setUser } from '@/lib/auth';
+import { setAuthToken, setUser, API_URL } from '@/lib/auth';
 import styles from './auth.module.css';
 import clsx from 'clsx';
 
@@ -38,7 +38,7 @@ export default function AuthPage() {
             : { username: username || 'User', email, password };
 
         try {
-            const response = await fetch(`https://zara-ai-iphl.onrender.com/api${endpoint}`, {
+            const response = await fetch(`${API_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
@@ -59,7 +59,10 @@ export default function AuthPage() {
             setUser(data.user);
             router.push('/');
         } catch (err: any) {
-            console.error(err);
+            console.group('%c🚨 Zara Auth Error', 'background: #222; color: #ff4444; font-weight: bold; padding: 4px;');
+            console.error('Message:', err.message);
+            console.error('Stack:', err.stack);
+            console.groupEnd();
             setError(err.message === 'Failed to fetch' ? 'Unable to connect to server. Please try again later.' : err.message);
         } finally {
             setIsLoading(false);

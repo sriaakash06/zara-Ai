@@ -35,6 +35,7 @@ Check if these tables exist:
 1. **`messages` table** - Should have columns:
    - `id` (int8, primary key, auto-increment)
    - `user_email` (text)
+   - `username` (text)
    - `user_message` (text)
    - `bot_reply` (text)
    - `created_at` (timestamptz, default: now())
@@ -43,6 +44,7 @@ Check if these tables exist:
    - `id` (int8, primary key, auto-increment)
    - `username` (text, unique)
    - `email` (text, unique)
+   - `password_hash` (text)
    - `created_at` (timestamptz, default: now())
 
 ### 4. Create Tables (If They Don't Exist)
@@ -55,6 +57,7 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    password_hash TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -62,6 +65,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
     user_email TEXT NOT NULL,
+    username TEXT,
     user_message TEXT NOT NULL,
     bot_reply TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()

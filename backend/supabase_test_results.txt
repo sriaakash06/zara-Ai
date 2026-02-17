@@ -1,0 +1,7 @@
+﻿==================================================
+SUPABASE CONNECTION TEST
+==================================================
+URL: https://qnxzoijsoxwrlzrrwcsv.supabase.co
+Key (first 20 chars): eyJhbGciOiJIUzI1NiIs...
+Key length: 208
+==================================================

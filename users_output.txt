@@ -1,0 +1,7 @@
+﻿Checking database at: backend\instance\zara.db
+Users found: 5
+ID: 1, Username: sri, Email: sri@gmail.com
+ID: 2, Username: Sri Aakash A, Email: aakash@gmail.com
+ID: 3, Username: testuser_repro, Email: test_repro@example.com
+ID: 4, Username: aakash A, Email: asriaakash@gmail.com
+ID: 5, Username: testuser_debug, Email: debug@example.com

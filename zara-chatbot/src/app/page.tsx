@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
+import { API_URL } from '@/lib/auth';
 import styles from './page.module.css';
 
 interface Message {
@@ -79,7 +80,7 @@ export default function Home() {
                     throw new Error('Invalid token');
                 }
 
-                const userRes = await fetch('https://zara-ai-iphl.onrender.com/api/user/me', {
+                const userRes = await fetch(`${API_URL}/user/me`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
 
@@ -104,7 +105,7 @@ export default function Home() {
 
     const fetchChats = async (token: string) => {
         try {
-            const chatsRes = await fetch('https://zara-ai-iphl.onrender.com/api/chats', {
+            const chatsRes = await fetch(`${API_URL}/chats`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (chatsRes.ok) {
@@ -121,7 +122,7 @@ export default function Home() {
         const authToken = token || localStorage.getItem('zara_token');
         if (!authToken) return;
         try {
-            const res = await fetch(`https://zara-ai-iphl.onrender.com/api/chats/${id}/messages`, {
+            const res = await fetch(`${API_URL}/chats/${id}/messages`, {
                 headers: { Authorization: `Bearer ${authToken}` }
             });
             if (res.ok) {
@@ -140,7 +141,7 @@ export default function Home() {
         const authToken = token || localStorage.getItem('zara_token');
         if (!authToken) return;
         try {
-            const res = await fetch('https://zara-ai-iphl.onrender.com/api/chats', {
+            const res = await fetch(`${API_URL}/chats`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
                 body: JSON.stringify({ title: 'New Chat' })
@@ -157,7 +158,7 @@ export default function Home() {
     const handleDeleteChat = async (id: number) => {
         const token = localStorage.getItem('zara_token');
         try {
-            const res = await fetch(`https://zara-ai-iphl.onrender.com/api/chats/${id}`, {
+            const res = await fetch(`${API_URL}/chats/${id}`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -174,7 +175,7 @@ export default function Home() {
     const handleRenameChat = async (id: number, newTitle: string) => {
         const token = localStorage.getItem('zara_token');
         try {
-            const res = await fetch(`https://zara-ai-iphl.onrender.com/api/chats/${id}`, {
+            const res = await fetch(`${API_URL}/chats/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ title: newTitle })
@@ -222,7 +223,7 @@ export default function Home() {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const res = await fetch('https://zara-ai-iphl.onrender.com/api/chat', {
+            const res = await fetch(`${API_URL}/chat`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -246,9 +247,16 @@ export default function Home() {
                 if (token) fetchChats(token);
             }
             setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
-        } catch (error) {
-            console.error(error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "I'm having trouble connecting to the server. Please check your connection or AI quota. ⚠️" }]);
+        } catch (error: any) {
+            console.group('%c🚨 Zara Chat Error', 'color: #ff4444; font-weight: bold; font-size: 12px;');
+            console.error('Request Details:', { input, chatId, apiUrl: API_URL });
+            console.error('Error details:', error);
+            console.groupEnd();
+
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `⚠️ Error: ${error.message || 'Something went wrong.'}\n\nCheck the browser console (Press F12) for technical details.`
+            }]);
         } finally { setIsLoading(false); }
     };
 
@@ -333,6 +341,10 @@ export default function Home() {
         return (
             <div className={styles.loadingOverlay}>
                 <Loader2 className={styles.spinner} />
+                <p style={{ marginTop: '1rem', color: 'white', opacity: 0.8 }}>
+                    Connecting to Zara AI... <br />
+                    <small>(Render server might take 30-60s to wake up)</small>
+                </p>
             </div>
         );
     }
