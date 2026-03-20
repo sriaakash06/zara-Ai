@@ -1,0 +1,62 @@
+﻿=======================================================
+  ZARA ù MongoDB Connection Test
+=======================================================
+URI   : mongodb+srv://****:****@zara-cluster.mc9eoj7.mongodb.net/?appName=zara-cluster
+-------------------------------------------------------
+python : Traceback (most 
+recent call last):
+At line:1 char:1
++ python 
+test_mongo_connection.py 2>&1 
+| Out-File -FilePath 
+mongo_test_ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo          :  
+   NotSpecified: (Traceback (  
+  most recent call last)::St   
+ ring) [], RemoteException
+    + FullyQualifiedErrorId :  
+   NativeCommandError
+ 
+  File "D:\Project-Files\Zara-C
+hatbot\backend\test_mongo_conne
+ction.py", line 31, in <module>
+    print(f"\u2705  Connected  
+\u2192  MongoDB 
+v{info.get('version', '?')}")
+  File "C:\Users\WELCOME\AppDat
+a\Local\Programs\Python\Python3
+10\lib\encodings\cp1252.py", 
+line 19, in encode
+    return codecs.charmap_encod
+e(input,self.errors,encoding_ta
+ble)[0]
+UnicodeEncodeError: 'charmap' 
+codec can't encode character 
+'\u2705' in position 0: 
+character maps to <undefined>
+
+During handling of the above 
+exception, another exception 
+occurred:
+
+Traceback (most recent call 
+last):
+  File "D:\Project-Files\Zara-C
+hatbot\backend\test_mongo_conne
+ction.py", line 56, in <module>
+    print(f"\u274c  Unexpected 
+error: {type(e).__name__}: 
+{e}")
+  File "C:\Users\WELCOME\AppDat
+a\Local\Programs\Python\Python3
+10\lib\encodings\cp1252.py", 
+line 19, in encode
+    return codecs.charmap_encod
+e(input,self.errors,encoding_ta
+ble)[0]
+UnicodeEncodeError: 'charmap' 
+codec can't encode character 
+'\u274c' in position 0: 
+character maps to <undefined>
