@@ -1,6 +1,6 @@
 import requests
 
-BASE_URL = "https://zara-chatbot-365f-465f.supabase.co/api"
+BASE_URL = "http://localhost:5000/api"
 
 def test_auth():
     # Try to login
