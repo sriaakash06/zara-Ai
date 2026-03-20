@@ -8,3 +8,4 @@ flask-jwt-extended
 pymongo
 dnspython
 gunicorn
+PyPDF2

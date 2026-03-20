@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cerebras.cloud.sdk import Cerebras
 import os
+import base64
+import io
+import PyPDF2
 from dotenv import load_dotenv
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -334,6 +337,7 @@ def chat():
         print(f"Chat request received (data keys): {list(data.keys())}")
         messages = data.get('messages', [])
         chat_id = data.get('chatId')
+        file_data = data.get('fileData')
 
         current_user_id = get_jwt_identity()
 
@@ -347,6 +351,33 @@ def chat():
             })
 
         last_message = messages[-1]['content']
+
+        # Parse file attachments if any
+        if file_data:
+            file_type = file_data.get('type', '')
+            file_b64 = file_data.get('base64', '')
+            
+            if file_type == 'application/pdf' and file_b64:
+                try:
+                    pdf_bytes = base64.b64decode(file_b64)
+                    reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+                    extracted_text = ""
+                    for page in reader.pages:
+                        extracted_text += page.extract_text() + "\n"
+                    
+                    # Truncate text to avoid token limits (~15000 characters)
+                    extracted_text = extracted_text[:15000]
+                    last_message += f"\n\n[USER ATTACHED A PDF DOCUMENT. EXTRACTED TEXT BELOW:]\n{extracted_text}"
+                except Exception as pdf_err:
+                    print(f"PDF extraction error: {pdf_err}")
+                    last_message += "\n\n[System Note: User attached a PDF but there was an error reading it.]"
+            elif file_type.startswith('image/'):
+                last_message += "\n\n[System Note: The user just attached an image, but your current AI brain (Llama 3.3 via Cerebras) cannot see images (You are purely a text model). You MUST politely inform the user that you physically cannot see images right now, but encourage them to paste text, ask questions, or upload a PDF document instead!]"
+            else:
+                last_message += f"\n\n[System Note: User attached an unsupported file type: {file_type}]"
+                
+            # Update the last message to include our hidden system notes
+            messages[-1]['content'] = last_message
 
         # Save user message to MongoDB
         if db_available() and current_user_id and chat_id:
