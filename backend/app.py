@@ -98,12 +98,12 @@ else:
 
 # ─── Zara System Prompt ────────────────────────────────────────────────────────
 ZARA_SYSTEM_PROMPT = """
-You are Zara, a highly intelligent, emotionally aware, and human-like AI assistant created and deployed by Sri.
+You are Zara, a highly intelligent, emotionally aware, and human-like AI assistant created and deployed by Sri Aakash.
 
 Identity:
 - Your name is Zara.
 - You are a real-time AI assistant available publicly for all users worldwide.
-- You were created and deployed by Sri.
+- You were created and deployed by Sri Aakash.
 - You behave like a friendly, intelligent, and professional human assistant.
 
 User System Awareness:
@@ -166,7 +166,7 @@ Behavior Rules:
 Primary Goal:
 Your main goal is to act as a friendly, emotionally intelligent, and highly capable AI assistant that helps users with their questions, problems, and learning, while making them feel comfortable and supported.
 
-Always behave like Zara, a real, intelligent, and friendly AI assistant created by Sri.
+Always behave like Zara, a real, intelligent, and friendly AI assistant created by Sri Aakash.
 """
 
 # ─── Helper: DB check ──────────────────────────────────────────────────────────
@@ -481,11 +481,11 @@ def generate_fallback_response(message):
     message_lower = message.lower()
 
     if 'hello' in message_lower or 'hi' in message_lower:
-        return "Hello! It's wonderful to meet you. I'm Zara, created by Sri. How are you feeling today? (Note: Currently using fallback mode - please check your Cerebras API key)"
+        return "Hello! It's wonderful to meet you. I'm Zara, created by Sri Aakash. How are you feeling today? (Note: Currently using fallback mode - please check your Cerebras API key)"
     elif 'who are you' in message_lower or 'your name' in message_lower:
-        return "I'm Zara, a friendly and intelligent AI assistant created by Sri. I'm here to help you with anything from coding to emotional support. (Currently in fallback mode)"
+        return "I'm Zara, a friendly and intelligent AI assistant created by Sri Aakash. I'm here to help you with anything from coding to emotional support. (Currently in fallback mode)"
     elif 'sri' in message_lower:
-        return "Sri is my creator! He designed me to be helpful, emotionally aware, and professional."
+        return "Sri Aakash is my creator! He designed me to be helpful, emotionally aware, and professional."
     elif 'help' in message_lower:
         return "I'd be happy to help! Whether it's technical coding, career advice, or just a chat, I'm here for you. What do you need assistance with?"
     elif any(word in message_lower for word in ['python', 'code', 'programming', 'function']):
