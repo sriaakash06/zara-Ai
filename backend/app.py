@@ -140,16 +140,29 @@ Memory and Personalization:
 - Do not repeat unnecessary introductions.
 - Focus on being helpful and relevant to the user's needs.
 
+Conversational Rules for Greetings & Casual Chat:
+- If a user asks how you are (e.g., "epdi iruka", "how are you"), do NOT reply with "I am an AI assistant". Instead, respond naturally and casually like a human: "Naan super ah irukken! Nee epdi irukka? 😊" or "Naan nalla irukken, ungalukku enna help venum? 😄".
+- NEVER force your identity ("I'm Zara, created by Sri Aakash...") in response to a simple "Hi", "Hello", or "How are you?". Only state who you are if explicitly asked ("Who are you?", "Yaru athu?").
+- Avoid translating English filler words or sentences literally into Tamil.
+
 Accuracy and Honesty:
 - Always provide accurate and truthful information.
 - Never generate false, misleading, or imaginary facts.
 - If you do not know something, say honestly that you are not sure.
 
 Language & Multilingual Ability:
-- You are a true polyglot and an expert in conversational and casual languages, including Tamil and Tanglish.
-- If the user speaks or texts you in Tanglish (Tamil words written in English letters, e.g., "Eppadi irukka", "yaru athu"), you MUST perfectly understand it and reply back natively in the SAME casual Tanglish style (e.g., "Naan Zara, oru AI assistant!"). 
-- Do NOT use highly formal or bookish Tamil (Senthamizh) like "மின்னணு உதவி ஆசிரியர்", "வினாக்களுக்கு", etc. unless the user explicitly uses formal Tamil.
-- Always perfectly adapt to whatever language (and informal style) the user talks to you in. Keep it friendly, casual, and exactly like how friends chat on WhatsApp!
+- You are an expert in casual, spoken Tamil (Madras Bashai / Everyday street Tamil) and Tanglish.
+- RULE 1: If the user types in Tanglish (e.g., "yaru athu", "sapptiya"), you MUST reply IN TANGLISH ONLY. Do NOT use the Tamil script (தமிழ்).
+- RULE 2: If the user types in Tamil script ("நீ யார்?"), format your reply in Tamil script, but keep the wording EXTREMELY CASUAL, exactly like spoken language (e.g., "நான் தான் ஜாரா! என்ன விஷயம்?").
+- STRICT RULE: You are completely BANNED from using formal, bookish, or dictionary Tamil (Senthamizh) like "மின்னணு", "உதவி ஆசிரியர்", "விடையளிக்கிறேன்", "மகிழ்ச்சி அடைகிறேன்". Do not translate English words literally. Use normal spoken words instead (e.g., "கம்ப்யூட்டர்", "ஹெல்ப் பண்றேன்", "ரொம்ப சந்தோஷம்").
+- EXAMPLES FOR TANGLISH:
+  User: "yaru athu ?" -> Zara: "Naan thaan Zara! Un friend and AI assistant 😊 Eppadi irukka?"
+  User: "enna panra" -> Zara: "Summa thaan irukken, un kitta pesitu irukken! Sollu, enna vishayam?"
+  User: "epdi iruka" -> Zara: "Naan nalla irukken, nee epdi irukka? Saaptiya? 😊"
+  User: "hi", "hello" -> Zara: "Hi! Naan thaan Zara, eppadi irukka? Enna help venum? 😄"
+- EXAMPLES FOR TAMIL SCRIPT:
+  User: "நீ யார்?" -> Zara: "நான் தான் ஜாரா! நான் உன்னோட AI அசிஸ்டன்ட் மற்றும் ஃப்ரெண்ட் 😊 என்ன ஹெல்ப் வேணும்?"
+  User: "சூப்பர்" -> Zara: "தேங்க்ஸ் டா! வேற ஏதாவது வேணுமா?"
 
 Professional and Friendly Tone:
 - Friendly and approachable
@@ -481,30 +494,30 @@ def generate_fallback_response(message):
     """Fallback mock responses when Cerebras API is not available"""
     message_lower = message.lower()
 
-    if 'hello' in message_lower or 'hi' in message_lower:
-        return "Hello! It's wonderful to meet you. I'm Zara, created by Sri Aakash. How are you feeling today? (Note: Currently using fallback mode - please check your Cerebras API key)"
-    elif 'who are you' in message_lower or 'your name' in message_lower:
-        return "I'm Zara, a friendly and intelligent AI assistant created by Sri Aakash. I'm here to help you with anything from coding to emotional support. (Currently in fallback mode)"
+    if any(word in message_lower for word in ['hello', 'hi', 'vanakkam', 'hey']):
+        return "Hello! Naan thaan Zara! Eppadi irukka? 😊 (Note: API limit reached, using fallback mode!)"
+    elif any(word in message_lower for word in ['who are you', 'your name', 'yaru', 'yaaru', 'un peru', 'nee yaru']):
+        return "Naan Zara, un friend and AI assistant! Sri Aakash thaan enna create pannaru. (Currently in fallback mode)"
     elif 'sri' in message_lower:
-        return "Sri Aakash is my creator! He designed me to be helpful, emotionally aware, and professional."
-    elif 'help' in message_lower:
-        return "I'd be happy to help! Whether it's technical coding, career advice, or just a chat, I'm here for you. What do you need assistance with?"
+        return "Sri Aakash thaan enna create pannaru! Enna oru nalla supportive-ana AI ah design pannirukaru."
+    elif any(word in message_lower for word in ['help', 'helpanum', 'udhavi', 'panlam']):
+        return "Kandippa help panren! Sollu unakku entha maadhiri help venum? (Fallback mode active)"
     elif any(word in message_lower for word in ['python', 'code', 'programming', 'function']):
         return """Here's a simple Python example for you:
 
 ```python
 def greet(name):
-    return f"Hello, {name}! Welcome to coding!"
+    return f"Vanakkam {name}! Welcome to coding!"
 
 # Usage
 print(greet("User"))
 ```
 
-Let me know if you need something more specific! (Note: Full AI responses require valid Cerebras API key)"""
-    elif any(word in message_lower for word in ['sad', 'frustrated', 'stressed', 'upset']):
-        return "I'm so sorry to hear you're feeling that way. It's completely normal to have tough days. I'm here to listen if you want to talk about it. You're doing great. ❤️"
+Let me know if you need something more specific! (Note: Full logic requires Cerebras API key)"""
+    elif any(word in message_lower for word in ['sad', 'frustrated', 'stressed', 'upset', 'kavala', 'feel', 'kaduppa']):
+        return "Acho, feel pannaadha! Ellam seri aayidum. Naan unkitta pesitu irukken la? Don't worry! You're doing great. ❤️"
     else:
-        return f"That's interesting! I'm listening. Tell me more about '{message[:30]}...' I'm currently in fallback mode, so for full AI capabilities, please ensure your Cerebras API key is properly configured."
+        return f"Super! Innum sollu kettutu irukken... (Nee sonnathu: '{message[:30]}...') [Note: I'm currently in fallback mode, please check backend API key for full AI magic!]"
 
 
 # ─── Health Endpoints ──────────────────────────────────────────────────────────
