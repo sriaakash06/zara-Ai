@@ -2,10 +2,9 @@
 flask
 flask-cors
 python-dotenv
-openai 
 cerebras-cloud-sdk
-flask-sqlalchemy
 flask-bcrypt
 flask-jwt-extended
-supabase
+pymongo
+dnspython
 gunicorn

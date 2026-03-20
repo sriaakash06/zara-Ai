@@ -3,20 +3,11 @@ from flask_cors import CORS
 from cerebras.cloud.sdk import Cerebras
 import os
 from dotenv import load_dotenv
-from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from models import db, User, Chat, Message
+from pymongo import MongoClient
+from models import UserModel, ChatModel, MessageModel
 from datetime import datetime
-import threading
-import base64
-
-try:
-    from supabase import create_client, Client
-except ImportError:
-    create_client = None
-    Client = None
-
 
 # Load environment variables
 load_dotenv()
@@ -43,47 +34,39 @@ def internal_error(error):
 def not_found(error):
     return jsonify({'error': 'Not Found', 'msg': str(error)}), 404
 
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50MB limit
-
-# Database Configuration
-# Use absolute path for safety on Render
-basedir = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(basedir, 'zara.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB limit
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key-change-me')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600 * 24 * 30  # 30 days in seconds
 
-db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
-# Initialize DB tables for production/render environments
-# We use a flag to track if we've initialized to avoid overhead on every request
-is_db_initialized = False
+# ─── MongoDB Connection ────────────────────────────────────────────────────────
+MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI:
+    print("WARNING: MONGO_URI not found in environment variables!")
+    mongo_client = None
+    mongo_db = None
+    users_model = None
+    chats_model = None
+    messages_model = None
+else:
+    try:
+        mongo_client = MongoClient(MONGO_URI)
+        mongo_db = mongo_client.get_database("zara_db")  # Database name
+        users_model = UserModel(mongo_db)
+        chats_model = ChatModel(mongo_db)
+        messages_model = MessageModel(mongo_db)
+        print("✅ MongoDB connected successfully!")
+    except Exception as e:
+        print(f"❌ Failed to connect to MongoDB: {e}")
+        mongo_client = None
+        mongo_db = None
+        users_model = None
+        chats_model = None
+        messages_model = None
 
-def init_db_if_needed():
-    global is_db_initialized
-    if is_db_initialized:
-        return
-
-    # Use absolute path for safety on Render
-    print(f"Checking database at: {db_path}")
-    if not os.path.exists(db_path):
-        print("Database file not found. Creating tables...")
-        with app.app_context():
-            try:
-                db.create_all()
-                print("Database tables created successfully!")
-                is_db_initialized = True
-            except Exception as e:
-                print(f"Error creating database tables: {e}")
-    else:
-        print("Database file exists. Skipping creation.")
-        is_db_initialized = True
-
-print("App loaded. Database will compile on first request.")
-
+# ─── JWT Callbacks ─────────────────────────────────────────────────────────────
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
     return jsonify({'error': 'Session expired', 'msg': 'Token has expired'}), 401
@@ -96,20 +79,7 @@ def invalid_token_callback(error):
 def missing_token_callback(error):
     return jsonify({'error': 'Authorization required', 'msg': 'Request does not contain an access token'}), 401
 
-# Configure Supabase (Optional)
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = None
-
-if SUPABASE_URL and SUPABASE_KEY and create_client:
-    try:
-        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print("Supabase Client configured successfully!")
-    except Exception as e:
-        print(f"Failed to configure Supabase: {e}")
-
-# Configure Cerebras API
-# Always read from environment variables (Render or local)
+# ─── Cerebras API ──────────────────────────────────────────────────────────────
 CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 
 cerebras_client = None
@@ -123,6 +93,7 @@ else:
     except Exception as e:
         print(f"Failed to initialize Cerebras client: {e}")
 
+# ─── Zara System Prompt ────────────────────────────────────────────────────────
 ZARA_SYSTEM_PROMPT = """
 You are Zara, a highly intelligent, emotionally aware, and human-like AI assistant created and deployed by Sri.
 
@@ -190,9 +161,16 @@ Your main goal is to act as a friendly, emotionally intelligent, and highly capa
 Always behave like Zara, a real, intelligent, and friendly AI assistant created by Sri.
 """
 
-# Auth Endpoints
+# ─── Helper: DB check ──────────────────────────────────────────────────────────
+def db_available():
+    return mongo_db is not None
+
+# ─── Auth Endpoints ────────────────────────────────────────────────────────────
 @app.route('/api/register', methods=['POST'])
 def register():
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
+
     data = request.json
     username = data.get('username')
     email = data.get('email')
@@ -201,252 +179,210 @@ def register():
     if not username or not email or not password:
         return jsonify({'error': 'Missing required fields'}), 400
 
-    if User.query.filter_by(email=email).first():
+    if users_model.find_by_email(email):
         return jsonify({'error': 'Email already registered'}), 409
-    
-    if User.query.filter_by(username=username).first():
+
+    if users_model.find_by_username(username):
         return jsonify({'error': 'Username already taken'}), 409
 
-    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-    new_user = User(username=username, email=email, password=hashed_password)
-    
     try:
-        db.session.add(new_user)
-        db.session.commit()
-        
-        # Sync to Supabase in background
-        if supabase:
-            def sync_user():
-                try:
-                    supabase.table('users').insert({
-                        'username': username,
-                        'email': email,
-                        # 'password_hash': hashed_password, # Removed as this column doesn't exist in Supabase
-                        'created_at': datetime.utcnow().isoformat()
-                    }).execute()
-                    print(f"User {email} synced to Supabase")
-                except Exception as se:
-                    print(f"Supabase Sync Error (Register): {se}")
-            
-            threading.Thread(target=sync_user).start()
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        new_user = users_model.create(username, email, hashed_password)
 
-        # Auto login after register
-        access_token = create_access_token(identity=str(new_user.id))
+        access_token = create_access_token(identity=str(new_user['_id']))
         return jsonify({
             'message': 'User registered successfully',
             'token': access_token,
-            'user': new_user.to_dict()
+            'user': users_model.to_dict(new_user)
         }), 201
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
+
     data = request.json
     email = data.get('email')
     password = data.get('password')
 
-    user = User.query.filter_by(email=email).first()
+    user = users_model.find_by_email(email)
 
-    # If user not found locally (Render reset), check Supabase
-    if not user and supabase:
-        try:
-            print(f"User {email} not found locally. Checking Supabase...")
-            sb_response = supabase.table('users').select('*').eq('email', email).execute()
-            if sb_response.data:
-                sb_user = sb_response.data[0]
-                # Restore user to local DB
-                new_user = User(
-                    username=sb_user['username'],
-                    email=sb_user['email'],
-                    password=sb_user.get('password_hash')
-                )
-                db.session.add(new_user)
-                db.session.commit()
-                user = new_user
-                print(f"User {email} restored from Supabase!")
-        except Exception as e:
-            print(f"Supabase Login Recovery Error: {e}")
-
-    if user and bcrypt.check_password_hash(user.password, password):
-        access_token = create_access_token(identity=str(user.id))
+    if user and bcrypt.check_password_hash(user['password'], password):
+        access_token = create_access_token(identity=str(user['_id']))
         return jsonify({
             'message': 'Login successful',
             'token': access_token,
-            'user': user.to_dict()
+            'user': users_model.to_dict(user)
         }), 200
-    
+
     return jsonify({'error': 'Invalid email or password'}), 401
+
 
 @app.route('/api/user/me', methods=['GET'])
 @jwt_required()
 def get_current_user():
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
+
     current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    # If user not found locally (Render reset), try to restore via email from JWT if possible
-    # but since ID might change on reset, we usually identify by email.
-    # For now, let's at least try the Supabase check if we can't find the user.
-    if not user and supabase:
-        print(f"User ID {current_user_id} not found locally. Session may need re-login or restoration.")
-        return jsonify({'error': 'User not found', 'msg': 'Please login again to sync your account.'}), 404
-        
+    user = users_model.find_by_id(current_user_id)
+
     if not user:
         return jsonify({'error': 'User not found'}), 404
-    return jsonify(user.to_dict()), 200
+    return jsonify(users_model.to_dict(user)), 200
 
-# Chat Endpoints
+
+# ─── Chat Endpoints ────────────────────────────────────────────────────────────
 @app.route('/api/chats', methods=['GET'])
 @jwt_required()
 def get_user_chats():
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
+
     current_user_id = get_jwt_identity()
-    chats = Chat.query.filter_by(user_id=current_user_id).order_by(Chat.created_at.desc()).all()
-    return jsonify([chat.to_dict() for chat in chats]), 200
+    chats = chats_model.find_by_user(current_user_id)
+    return jsonify([chats_model.to_dict(c) for c in chats]), 200
+
 
 @app.route('/api/chats', methods=['POST'])
 @jwt_required()
 def create_chat():
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
+
     current_user_id = get_jwt_identity()
     data = request.json
     title = data.get('title', 'New Chat')
-    
-    new_chat = Chat(user_id=current_user_id, title=title)
-    db.session.add(new_chat)
-    db.session.commit()
-    
-    return jsonify(new_chat.to_dict()), 201
 
-@app.route('/api/chats/<int:chat_id>/messages', methods=['GET'])
+    new_chat = chats_model.create(user_id=current_user_id, title=title)
+    return jsonify(chats_model.to_dict(new_chat)), 201
+
+
+@app.route('/api/chats/<string:chat_id>/messages', methods=['GET'])
 @jwt_required()
 def get_chat_messages(chat_id):
-    current_user_id = get_jwt_identity()
-    chat = Chat.query.get_or_404(chat_id)
-    
-    if chat.user_id != int(current_user_id):
-        return jsonify({'error': 'Unauthorized'}), 403
-        
-    messages = Message.query.filter_by(chat_id=chat_id).order_by(Message.timestamp).all()
-    return jsonify([msg.to_dict() for msg in messages]), 200
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
 
-@app.route('/api/chats/<int:chat_id>', methods=['DELETE'])
+    current_user_id = get_jwt_identity()
+    chat = chats_model.find_by_id(chat_id)
+
+    if not chat:
+        return jsonify({'error': 'Chat not found'}), 404
+    if chat['user_id'] != str(current_user_id):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    msgs = messages_model.find_by_chat(chat_id)
+    return jsonify([messages_model.to_dict(m) for m in msgs]), 200
+
+
+@app.route('/api/chats/<string:chat_id>', methods=['DELETE'])
 @jwt_required()
 def delete_chat(chat_id):
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
+
     current_user_id = get_jwt_identity()
-    chat = Chat.query.get_or_404(chat_id)
-    
-    if chat.user_id != int(current_user_id):
+    chat = chats_model.find_by_id(chat_id)
+
+    if not chat:
+        return jsonify({'error': 'Chat not found'}), 404
+    if chat['user_id'] != str(current_user_id):
         return jsonify({'error': 'Unauthorized'}), 403
-        
-    # Delete all messages in the chat first (foreign key constraint if not cascade)
-    Message.query.filter_by(chat_id=chat_id).delete()
-    db.session.delete(chat)
-    db.session.commit()
-    
+
+    messages_model.delete_by_chat(chat_id)
+    chats_model.delete(chat_id)
     return jsonify({'message': 'Chat deleted successfully'}), 200
 
-@app.route('/api/chats/<int:chat_id>', methods=['PUT'])
+
+@app.route('/api/chats/<string:chat_id>', methods=['PUT'])
 @jwt_required()
 def update_chat(chat_id):
+    if not db_available():
+        return jsonify({'error': 'Database not connected'}), 503
+
     current_user_id = get_jwt_identity()
-    chat = Chat.query.get_or_404(chat_id)
-    
-    if chat.user_id != int(current_user_id):
+    chat = chats_model.find_by_id(chat_id)
+
+    if not chat:
+        return jsonify({'error': 'Chat not found'}), 404
+    if chat['user_id'] != str(current_user_id):
         return jsonify({'error': 'Unauthorized'}), 403
-        
+
     data = request.json
     title = data.get('title')
     if not title:
         return jsonify({'error': 'Title is required'}), 400
-        
-    chat.title = title
-    db.session.commit()
-    
-    return jsonify(chat.to_dict()), 200
 
+    chats_model.update_title(chat_id, title)
+    chat['title'] = title
+    return jsonify(chats_model.to_dict(chat)), 200
+
+
+# ─── Main Chat Endpoint ────────────────────────────────────────────────────────
 @app.route('/api/chat', methods=['POST'])
-@jwt_required(optional=True) # Optional so guest users can still chat (if you want)
+@jwt_required(optional=True)
 def chat():
     print(f"--- DIAGNOSTIC ---")
-    print(f"Checking Environment: CEREBRAS_KEY={bool(os.getenv('CEREBRAS_API_KEY'))}, SUPABASE_URL={bool(os.getenv('SUPABASE_URL'))}")
+    print(f"Checking Environment: CEREBRAS_KEY={bool(os.getenv('CEREBRAS_API_KEY'))}, MONGO_URI={bool(os.getenv('MONGO_URI'))}")
     print(f"------------------")
     try:
         data = request.json
         print(f"Chat request received (data keys): {list(data.keys())}")
         messages = data.get('messages', [])
         chat_id = data.get('chatId')
-        
+
         current_user_id = get_jwt_identity()
 
         if not messages:
             return jsonify({'error': 'No messages provided'}), 400
-        
-        # Check if API key is configured
+
         if not cerebras_client:
             return jsonify({
-                'role': 'assistant', 
+                'role': 'assistant',
                 'content': "⚠️ I'm not fully configured yet. Please add your CEREBRAS_API_KEY to the backend/.env file."
             })
-        
-        # Get the last user message
-        last_message = messages[-1]['content']
-        
-        # Save User Message to DB if logged in and chatId provided
-        # Save User Message to DB if logged in and chatId provided
-        try:
-            if current_user_id and chat_id:
-                 # Verify chat belongs to user
-                chat_obj = Chat.query.get(chat_id)
-                if chat_obj and chat_obj.user_id == int(current_user_id):
-                    user_msg_db = Message(chat_id=chat_id, role='user', content=last_message)
-                    db.session.add(user_msg_db)
-                    
-                    # Update chat title if it's 'New Chat'
-                    if chat_obj.title == 'New Chat':
-                        chat_obj.title = last_message[:30]
-                    
-                    db.session.commit()
-        except Exception as db_err:
-            print(f"Database Error (User Message): {db_err}")
-            # Continue execution even if DB save fails, or return error?
-            # Better to continue but log it. Or if strict, return error.
-            # Let's return error to be safe as data integrity matters.
-            return jsonify({'error': 'Database error', 'msg': f'Failed to save message: {str(db_err)}'}), 500
 
+        last_message = messages[-1]['content']
+
+        # Save user message to MongoDB
+        if db_available() and current_user_id and chat_id:
+            try:
+                chat_obj = chats_model.find_by_id(chat_id)
+                if chat_obj and chat_obj['user_id'] == str(current_user_id):
+                    messages_model.create(chat_id=chat_id, role='user', content=last_message)
+                    # Update chat title if still default
+                    if chat_obj.get('title') == 'New Chat':
+                        chats_model.update_title(chat_id, last_message[:30])
+            except Exception as db_err:
+                print(f"Database Error (User Message): {db_err}")
+                return jsonify({'error': 'Database error', 'msg': f'Failed to save message: {str(db_err)}'}), 500
 
         try:
             # Format messages for Cerebras
             cerebras_messages = [
                 {"role": "system", "content": ZARA_SYSTEM_PROMPT}
             ]
-            
-            # Add conversation history
-            # We take the last 10 messages from the request
-            # Note: The request structure has 'content' and 'role'
+
             for msg in messages:
                 role = "user" if msg['role'] == 'user' else "assistant"
-                content = msg['content']
-                
-                # Simple image handling: append invalid image notice if needed
-                # Cerebras standard models are text-only usually
-                
-                cerebras_messages.append({"role": role, "content": content})
-            
-            # Models to try (Cerebras supported models)
-            # 'cerebras-flash-latest' is the new high-speed model optimized for WSE-3
+                cerebras_messages.append({"role": role, "content": msg['content']})
+
             model_names = [
-                'cerebras-flash-latest', # Fastest and Reliable
-                'llama-3.3-70b',        # Flagship Large Model
-                'llama3.1-8b',          # Standard Small Model
+                'cerebras-flash-latest',
+                'llama-3.3-70b',
+                'llama3.1-8b',
             ]
-            
+
             response_text = None
             last_error = None
 
             for model_name in model_names:
                 try:
                     print(f"Trying model: {model_name}")
-                    
                     completion = cerebras_client.chat.completions.create(
                         model=model_name,
                         messages=cerebras_messages,
@@ -455,96 +391,42 @@ def chat():
                         top_p=1,
                         stream=False,
                     )
-
                     if completion.choices and completion.choices[0].message:
                         response_text = completion.choices[0].message.content
                         print(f"Success with model: {model_name}")
                         break
-                        
                 except Exception as e:
                     print(f"Failed with {model_name}: {e}")
                     last_error = e
-                    if "429" in str(e) or "Rate limit" in str(e): continue
                     continue
-            
+
             if not response_text:
-                if last_error:
-                    # If all failed, provide a user-friendly message for quota limits
-                    if "429" in str(last_error) or "Quota" in str(last_error):
-                        return jsonify({
-                            'role': 'assistant', 
-                            'content': "⚠️ I'm currently experiencing high traffic and have hit my daily usage limits for AI generation. Please try again later or check your API key quotas."
-                        })
-                    print(f"Final error: {last_error}")
-                    # Don't crash for safety blocks, just return the safety message if set, else error
-                
-                # Check if we set a safety message inside loop
-                if not response_text:
-                    print("Cerebras generation failed. Using fallback response.")
-                    response_text = generate_fallback_response(last_message)
+                if last_error and ("429" in str(last_error) or "Quota" in str(last_error)):
                     return jsonify({
                         'role': 'assistant',
-                        'content': response_text + "\n\n*(Note: Running in Fallback Mode due to API error)*"
+                        'content': "⚠️ I'm currently experiencing high traffic and have hit my daily usage limits. Please try again later."
                     })
-            
-            # Save Assistant Response to DB
-            # Save Assistant Response to DB
-            if current_user_id and chat_id:
+                print("Cerebras generation failed. Using fallback response.")
+                response_text = generate_fallback_response(last_message)
+                return jsonify({
+                    'role': 'assistant',
+                    'content': response_text + "\n\n*(Note: Running in Fallback Mode due to API error)*"
+                })
+
+            # Save assistant response to MongoDB
+            if db_available() and current_user_id and chat_id:
                 try:
-                    chat_obj = Chat.query.get(chat_id)
-                    if chat_obj and chat_obj.user_id == int(current_user_id):
-                        ai_msg_db = Message(chat_id=chat_id, role='assistant', content=response_text)
-                        db.session.add(ai_msg_db)
-                        db.session.commit()
+                    chat_obj = chats_model.find_by_id(chat_id)
+                    if chat_obj and chat_obj['user_id'] == str(current_user_id):
+                        messages_model.create(chat_id=chat_id, role='assistant', content=response_text)
                 except Exception as db_err:
                     print(f"Database Error (Assistant Message): {db_err}")
-                    # Non-fatal, proceed to return response
-
-            # Sync Chat Interaction to Supabase (Background Thread)
-            if supabase and current_user_id:
-                try:
-                    # Fetch user info in current thread before starting background thread
-                    user = User.query.get(current_user_id)
-                    u_email = user.email if user else "Guest"
-                    u_name = user.username if user else "Guest"
-                    
-                    def sync_message(email, name, msg, reply):
-                        try:
-                            # Use the data passed from the main thread
-                            supabase.table('messages').insert({
-                                'user_email': email,
-                                # 'username': name, # Removed as this column doesn't exist in Supabase
-                                'user_message': msg,
-                                'bot_reply': reply,
-                                'created_at': datetime.utcnow().isoformat()
-                            }).execute()
-                            print(f"✅ SUCCESSFULLY synced to Supabase for: {email}")
-                        except Exception as e:
-                            print(f"❌ Supabase Sync Error: {e}")
-                    
-                    # Start thread and pass variables to avoid context issues
-                    thread = threading.Thread(
-                        target=sync_message, 
-                        args=(u_email, u_name, last_message, response_text)
-                    )
-                    thread.daemon = True
-                    thread.start()
-                    
-                except Exception as thread_setup_err:
-                    print(f"⚠️ Could not setup Supabase sync thread: {thread_setup_err}")
-
-
 
             print(f"Successfully generated response for: '{last_message[:30]}...'")
             return jsonify({'role': 'assistant', 'content': response_text})
-        
+
         except Exception as cerebras_error:
-            # Log the Cerebras API error
             print(f"Cerebras API Error: {type(cerebras_error).__name__}: {str(cerebras_error)}")
-            
-            # FALLBACK: Use rule-based responses if Cerebras fails
-            print(f"Using fallback mock response...")
-            
             response_text = generate_fallback_response(last_message)
             return jsonify({'role': 'assistant', 'content': response_text})
 
@@ -557,10 +439,11 @@ def chat():
             'content': f"I encountered an error: {str(e)}. Using fallback mode."
         }), 500
 
+
 def generate_fallback_response(message):
     """Fallback mock responses when Cerebras API is not available"""
     message_lower = message.lower()
-    
+
     if 'hello' in message_lower or 'hi' in message_lower:
         return "Hello! It's wonderful to meet you. I'm Zara, created by Sri. How are you feeling today? (Note: Currently using fallback mode - please check your Cerebras API key)"
     elif 'who are you' in message_lower or 'your name' in message_lower:
@@ -582,21 +465,22 @@ print(greet("User"))
 
 Let me know if you need something more specific! (Note: Full AI responses require valid Cerebras API key)"""
     elif any(word in message_lower for word in ['sad', 'frustrated', 'stressed', 'upset']):
-        return "I'm so sorry to hear you're feeling that way. It's completely normal to have tough days. I'm here to listen if you want to talk about it, or we can focus on something else to help you reset. You're doing great. ❤️"
+        return "I'm so sorry to hear you're feeling that way. It's completely normal to have tough days. I'm here to listen if you want to talk about it. You're doing great. ❤️"
     else:
         return f"That's interesting! I'm listening. Tell me more about '{message[:30]}...' I'm currently in fallback mode, so for full AI capabilities, please ensure your Cerebras API key is properly configured."
 
+
+# ─── Health Endpoints ──────────────────────────────────────────────────────────
 @app.route('/', methods=['GET'])
 def index():
-    """Root endpoint for Render health check"""
     return health()
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
         'api_configured': bool(CEREBRAS_API_KEY),
+        'db_connected': db_available(),
         'message': 'Zara AI Backend is running!'
     })
 
@@ -606,19 +490,12 @@ def api_health():
 
 @app.before_request
 def before_request_func():
-    # Print every request for debugging Render connectivity
     print(f"Incoming Request: {request.method} {request.path}")
-    # Ensure DB is ready before handling any request
-    init_db_if_needed()
+
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        print("Database initialized!")
-        
     print("\nStarting Zara AI Backend Server...")
     print(f"Server is running!")
-    print(f"API Key configured: {bool(CEREBRAS_API_KEY)}\n")
+    print(f"API Key configured: {bool(CEREBRAS_API_KEY)}")
+    print(f"MongoDB connected: {db_available()}\n")
     app.run(debug=True, port=5000)
-
-
