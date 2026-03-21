@@ -80,7 +80,7 @@ print("=" * 60)
 
 if message_count > 0:
     print("\nData IS being saved to the local SQLite database!")
-    print("Next step: Verify MongoDB connection to sync to cloud database")
+
 else:
     print("\nNo messages found in local database")
     print("Try sending a message in the chat to test if saving works")
