@@ -1,7 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from cerebras.cloud.sdk import Cerebras
 import os
+import json
+import time
 import base64
 import io
 import PyPDF2
@@ -181,6 +183,9 @@ Behavior Rules:
 
 Primary Goal:
 Your main goal is to act as a friendly, emotionally intelligent, and highly capable AI assistant that helps users with their questions, problems, and learning, while making them feel comfortable and supported.
+
+Response length limit:
+- Keep your responses concise and limited to 250–400 words by default, unless the user explicitly asks for a detailed explanation, comprehensive guide, code snippets, or deep-dive analysis.
 
 Always behave like Zara, a real, intelligent, and friendly AI assistant created by Sri Aakash.
 """
@@ -413,59 +418,78 @@ def chat():
                 print(f"Database Error (User Message): {db_err}")
                 return jsonify({'error': 'Database error', 'msg': f'Failed to save message: {str(db_err)}'}), 500
 
-        try:
-            # Format messages for Cerebras
-            cerebras_messages = [
-                {"role": "system", "content": ZARA_SYSTEM_PROMPT}
-            ]
+        # Format messages for Cerebras
+        cerebras_messages = [
+            {"role": "system", "content": ZARA_SYSTEM_PROMPT}
+        ]
 
-            for msg in messages:
-                role = "user" if msg['role'] == 'user' else "assistant"
-                cerebras_messages.append({"role": role, "content": msg['content']})
+        for msg in messages:
+            role = "user" if msg['role'] == 'user' else "assistant"
+            cerebras_messages.append({"role": role, "content": msg['content']})
 
-            model_names = [
-                'zai-glm-4.7',
-                'gpt-oss-120b',
-                'cerebras-flash-latest',
-                'llama-3.3-70b',
-                'llama3.1-8b',
-            ]
+        model_names = [
+            'zai-glm-4.7',
+            'gpt-oss-120b',
+            'cerebras-flash-latest',
+            'llama-3.3-70b',
+            'llama3.1-8b',
+        ]
 
-            response_text = None
+        def generate_stream():
+            start_time = time.time()
+            first_token_time = None
+            response_text = ""
+            success = False
             last_error = None
 
             for model_name in model_names:
                 try:
-                    print(f"Trying model: {model_name}")
+                    print(f"Trying model: {model_name} (stream)")
                     completion = cerebras_client.chat.completions.create(
                         model=model_name,
                         messages=cerebras_messages,
                         temperature=0.7,
                         max_tokens=4096,
                         top_p=1,
-                        stream=False,
+                        stream=True,
                     )
-                    if completion.choices and completion.choices[0].message:
-                        response_text = completion.choices[0].message.content
-                        print(f"Success with model: {model_name}")
-                        break
+                    
+                    for chunk in completion:
+                        if chunk.choices and chunk.choices[0].delta:
+                            content = chunk.choices[0].delta.content or ""
+                            if content:
+                                if first_token_time is None:
+                                    first_token_time = time.time()
+                                    latency = (first_token_time - start_time) * 1000
+                                    print(f"⚡ Time to First Token: {latency:.2f} ms")
+                                response_text += content
+                                yield f"data: {json.dumps({'content': content})}\n\n"
+                    
+                    success = True
+                    print(f"Success with model: {model_name} (stream)")
+                    break
                 except Exception as e:
                     print(f"Failed with {model_name}: {e}")
                     last_error = e
                     continue
 
-            if not response_text:
+            if not success:
+                print("Cerebras streaming failed. Using fallback response.")
+                fallback_msg = generate_fallback_response(last_message)
                 if last_error and ("429" in str(last_error) or "Quota" in str(last_error)):
-                    return jsonify({
-                        'role': 'assistant',
-                        'content': "⚠️ I'm currently experiencing high traffic and have hit my daily usage limits. Please try again later."
-                    })
-                print("Cerebras generation failed. Using fallback response.")
-                response_text = generate_fallback_response(last_message)
-                return jsonify({
-                    'role': 'assistant',
-                    'content': response_text + "\n\n*(Note: Running in Fallback Mode due to API error)*"
-                })
+                    fallback_msg = "⚠️ I'm currently experiencing high traffic and have hit my daily usage limits. Please try again later."
+                
+                # Stream the fallback message
+                words = fallback_msg.split(" ")
+                for i, word in enumerate(words):
+                    space = " " if i > 0 else ""
+                    yield f"data: {json.dumps({'content': space + word})}\n\n"
+                    time.sleep(0.01)
+                
+                response_text = fallback_msg
+
+            total_time = (time.time() - start_time) * 1000
+            print(f"⚡ Total Streaming & Generation Time: {total_time:.2f} ms")
 
             # Save assistant response to MongoDB
             if db_available() and current_user_id and chat_id:
@@ -474,15 +498,9 @@ def chat():
                     if chat_obj and chat_obj['user_id'] == str(current_user_id):
                         messages_model.create(chat_id=chat_id, role='assistant', content=response_text)
                 except Exception as db_err:
-                    print(f"Database Error (Assistant Message): {db_err}")
+                    print(f"Database Error (Assistant Message Stream): {db_err}")
 
-            print(f"Successfully generated response for: '{last_message[:30]}...'")
-            return jsonify({'role': 'assistant', 'content': response_text})
-
-        except Exception as cerebras_error:
-            print(f"Cerebras API Error: {type(cerebras_error).__name__}: {str(cerebras_error)}")
-            response_text = generate_fallback_response(last_message)
-            return jsonify({'role': 'assistant', 'content': response_text})
+        return Response(generate_stream(), mimetype='text/event-stream')
 
     except Exception as e:
         print(f"Error: {e}")

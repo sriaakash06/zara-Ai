@@ -216,6 +216,9 @@ export default function Home() {
         shouldAutoScrollRef.current = true;
         userHasScrolledRef.current = false;
 
+        const startTime = performance.now();
+        let firstTokenTime: number | null = null;
+
         try {
             const token = localStorage.getItem('zara_token');
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -232,8 +235,9 @@ export default function Home() {
                     fileData: userFileData
                 })
             });
-            const data = await res.json();
+
             if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
                 console.error('Chat API Error:', res.status, data);
                 if (res.status === 401 || res.status === 422) {
                     localStorage.removeItem('zara_token');
@@ -243,21 +247,80 @@ export default function Home() {
                 throw new Error(data.error || data.msg || data.content || 'Failed to fetch response');
             }
 
+            const reader = res.body?.getReader();
+            const decoder = new TextDecoder();
+            if (!reader) {
+                throw new Error("Response body is not readable");
+            }
+
+            // Turn off loading indicator to hide the typing indicator since stream is starting
+            setIsLoading(false);
+
+            // Add an empty assistant response placeholder
+            setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+            let accumulatedContent = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunkText = decoder.decode(value, { stream: true });
+                const lines = chunkText.split('\n');
+                
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed.startsWith('data: ')) continue;
+                    
+                    try {
+                        const jsonStr = trimmed.slice(6);
+                        const parsed = JSON.parse(jsonStr);
+                        if (parsed.content !== undefined) {
+                            if (firstTokenTime === null) {
+                                firstTokenTime = performance.now();
+                                const latency = firstTokenTime - startTime;
+                                console.log(`⚡ Time to First Token: ${latency.toFixed(2)} ms`);
+                            }
+                            accumulatedContent += parsed.content;
+                            
+                            setMessages(prev => {
+                                const newMessages = [...prev];
+                                if (newMessages.length > 0) {
+                                    newMessages[newMessages.length - 1] = {
+                                        ...newMessages[newMessages.length - 1],
+                                        content: accumulatedContent
+                                    };
+                                }
+                                return newMessages;
+                            });
+                        }
+                    } catch (e) {
+                        // Ignore syntax errors from partial chunks
+                    }
+                }
+            }
+
+            const totalTime = performance.now() - startTime;
+            console.log(`⚡ Total Streaming & Render Time: ${totalTime.toFixed(2)} ms`);
+
             if (chats.find(c => c.id === chatId)?.title === 'New Chat') {
                 if (token) fetchChats(token);
             }
-            setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+
         } catch (error: any) {
             console.group('%c🚨 Zara Chat Error', 'color: #ff4444; font-weight: bold; font-size: 12px;');
             console.error('Request Details:', { input, chatId, apiUrl: API_URL });
             console.error('Error details:', error);
             console.groupEnd();
 
+            // Set loading state false if it was active
+            setIsLoading(false);
+
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: `⚠️ Error: ${error.message || 'Something went wrong.'}\n\nCheck the browser console (Press F12) for technical details.`
             }]);
-        } finally { setIsLoading(false); }
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
