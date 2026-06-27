@@ -21,7 +21,7 @@ try:
         messages=[
             {"role": "user", "content": "Hello, are you working?"}
         ],
-        model="cerebras-flash-latest",
+        model="zai-glm-4.7",
     )
     
     print("\nSuccess! Response:")

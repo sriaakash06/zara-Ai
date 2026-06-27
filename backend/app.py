@@ -424,6 +424,8 @@ def chat():
                 cerebras_messages.append({"role": role, "content": msg['content']})
 
             model_names = [
+                'zai-glm-4.7',
+                'gpt-oss-120b',
                 'cerebras-flash-latest',
                 'llama-3.3-70b',
                 'llama3.1-8b',
