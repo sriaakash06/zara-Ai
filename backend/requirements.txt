@@ -2,6 +2,7 @@
 flask
 flask-cors
 python-dotenv
+groq
 cerebras-cloud-sdk
 flask-bcrypt
 flask-jwt-extended
@@ -9,3 +10,4 @@ pymongo
 dnspython
 gunicorn
 PyPDF2
+

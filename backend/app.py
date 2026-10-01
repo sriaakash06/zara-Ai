@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+from groq import Groq
 from cerebras.cloud.sdk import Cerebras
 import os
 import json
@@ -13,6 +14,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from pymongo import MongoClient
 from models import UserModel, ChatModel, MessageModel
 from datetime import datetime
+
 
 # Load environment variables
 load_dotenv()
@@ -84,19 +86,29 @@ def invalid_token_callback(error):
 def missing_token_callback(error):
     return jsonify({'error': 'Authorization required', 'msg': 'Request does not contain an access token'}), 401
 
-# ─── Cerebras API ──────────────────────────────────────────────────────────────
-CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
+# ─── AI Clients (Groq & Cerebras) ───────────────────────────────────────────────
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+groq_client = None
+if not GROQ_API_KEY:
+    print("WARNING: GROQ_API_KEY not found!")
+else:
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        print("✅ Groq Client initialized successfully!")
+    except Exception as e:
+        print(f"❌ Failed to initialize Groq client: {e}")
 
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 cerebras_client = None
 if not CEREBRAS_API_KEY:
     print("WARNING: CEREBRAS_API_KEY not found!")
 else:
-    print("CEREBRAS_API_KEY loaded successfully")
     try:
         cerebras_client = Cerebras(api_key=CEREBRAS_API_KEY)
-        print("Cerebras Client initialized successfully!")
+        print("✅ Cerebras Client initialized successfully!")
     except Exception as e:
-        print(f"Failed to initialize Cerebras client: {e}")
+        print(f"❌ Failed to initialize Cerebras client: {e}")
+
 
 # ─── Zara System Prompt ────────────────────────────────────────────────────────
 ZARA_SYSTEM_PROMPT = """
@@ -370,10 +382,10 @@ def chat():
         if not messages:
             return jsonify({'error': 'No messages provided'}), 400
 
-        if not cerebras_client:
+        if not groq_client and not cerebras_client:
             return jsonify({
                 'role': 'assistant',
-                'content': "⚠️ I'm not fully configured yet. Please add your CEREBRAS_API_KEY to the backend/.env file."
+                'content': "⚠️ I'm not fully configured yet. Please add GROQ_API_KEY or CEREBRAS_API_KEY to backend/.env."
             })
 
         last_message = messages[-1]['content']
@@ -398,7 +410,7 @@ def chat():
                     print(f"PDF extraction error: {pdf_err}")
                     last_message += "\n\n[System Note: User attached a PDF but there was an error reading it.]"
             elif file_type.startswith('image/'):
-                last_message += "\n\n[System Note: The user just attached an image, but your current AI brain (Llama 3.3 via Cerebras) cannot see images (You are purely a text model). You MUST politely inform the user that you physically cannot see images right now, but encourage them to paste text, ask questions, or upload a PDF document instead!]"
+                last_message += "\n\n[System Note: The user just attached an image, but your current AI brain cannot see images (You are purely a text model). You MUST politely inform the user that you physically cannot see images right now, but encourage them to paste text, ask questions, or upload a PDF document instead!]"
             else:
                 last_message += f"\n\n[System Note: User attached an unsupported file type: {file_type}]"
                 
@@ -418,22 +430,14 @@ def chat():
                 print(f"Database Error (User Message): {db_err}")
                 return jsonify({'error': 'Database error', 'msg': f'Failed to save message: {str(db_err)}'}), 500
 
-        # Format messages for Cerebras
-        cerebras_messages = [
+        # Format messages for AI completion
+        ai_messages = [
             {"role": "system", "content": ZARA_SYSTEM_PROMPT}
         ]
 
         for msg in messages:
             role = "user" if msg['role'] == 'user' else "assistant"
-            cerebras_messages.append({"role": role, "content": msg['content']})
-
-        model_names = [
-            'zai-glm-4.7',
-            'gpt-oss-120b',
-            'cerebras-flash-latest',
-            'llama-3.3-70b',
-            'llama3.1-8b',
-        ]
+            ai_messages.append({"role": role, "content": msg['content']})
 
         def generate_stream():
             start_time = time.time()
@@ -442,42 +446,88 @@ def chat():
             success = False
             last_error = None
 
-            for model_name in model_names:
-                try:
-                    print(f"Trying model: {model_name} (stream)")
-                    completion = cerebras_client.chat.completions.create(
-                        model=model_name,
-                        messages=cerebras_messages,
-                        temperature=0.7,
-                        max_tokens=4096,
-                        top_p=1,
-                        stream=True,
-                    )
-                    
-                    for chunk in completion:
-                        if chunk.choices and chunk.choices[0].delta:
-                            content = chunk.choices[0].delta.content or ""
-                            if content:
-                                if first_token_time is None:
-                                    first_token_time = time.time()
-                                    latency = (first_token_time - start_time) * 1000
-                                    print(f"⚡ Time to First Token: {latency:.2f} ms")
-                                response_text += content
-                                yield f"data: {json.dumps({'content': content})}\n\n"
-                    
-                    success = True
-                    print(f"Success with model: {model_name} (stream)")
-                    break
-                except Exception as e:
-                    print(f"Failed with {model_name}: {e}")
-                    last_error = e
-                    continue
+            # 1. Try Groq Models
+            if groq_client:
+                groq_models = [
+                    'qwen/qwen3.8-27b',
+                    'openai/gpt-oss-120b',
+                    'openai/gpt-oss-20b',
+                ]
+                for model_name in groq_models:
+                    try:
+                        print(f"Trying Groq model: {model_name} (stream)")
+                        completion = groq_client.chat.completions.create(
+                            model=model_name,
+                            messages=ai_messages,
+                            temperature=0.7,
+                            max_tokens=4096,
+                            stream=True,
+                        )
+                        
+                        for chunk in completion:
+                            if chunk.choices and chunk.choices[0].delta:
+                                content = chunk.choices[0].delta.content or ""
+                                if content:
+                                    if first_token_time is None:
+                                        first_token_time = time.time()
+                                        latency = (first_token_time - start_time) * 1000
+                                        print(f"⚡ Time to First Token (Groq): {latency:.2f} ms")
+                                    response_text += content
+                                    yield f"data: {json.dumps({'content': content})}\n\n"
+                        
+                        success = True
+                        print(f"✅ Success with Groq model: {model_name} (stream)")
+                        break
+                    except Exception as e:
+                        print(f"❌ Failed with Groq model {model_name}: {e}")
+                        last_error = e
+                        continue
+
+            # 2. Try Cerebras Models if Groq didn't succeed
+            if not success and cerebras_client:
+                cerebras_models = [
+                    'zai-glm-4.7',
+                    'gpt-oss-120b',
+                    'cerebras-flash-latest',
+                    'llama-3.3-70b',
+                    'llama3.1-8b',
+                ]
+                for model_name in cerebras_models:
+                    try:
+                        print(f"Trying Cerebras model: {model_name} (stream)")
+                        completion = cerebras_client.chat.completions.create(
+                            model=model_name,
+                            messages=ai_messages,
+                            temperature=0.7,
+                            max_tokens=4096,
+                            top_p=1,
+                            stream=True,
+                        )
+                        
+                        for chunk in completion:
+                            if chunk.choices and chunk.choices[0].delta:
+                                content = chunk.choices[0].delta.content or ""
+                                if content:
+                                    if first_token_time is None:
+                                        first_token_time = time.time()
+                                        latency = (first_token_time - start_time) * 1000
+                                        print(f"⚡ Time to First Token (Cerebras): {latency:.2f} ms")
+                                    response_text += content
+                                    yield f"data: {json.dumps({'content': content})}\n\n"
+                        
+                        success = True
+                        print(f"✅ Success with Cerebras model: {model_name} (stream)")
+                        break
+                    except Exception as e:
+                        print(f"❌ Failed with Cerebras model {model_name}: {e}")
+                        last_error = e
+                        continue
 
             if not success:
-                print("Cerebras streaming failed. Using fallback response.")
+                print("All AI model streaming failed. Using fallback response.")
                 fallback_msg = generate_fallback_response(last_message)
                 if last_error and ("429" in str(last_error) or "Quota" in str(last_error)):
-                    fallback_msg = "⚠️ I'm currently experiencing high traffic and have hit my daily usage limits. Please try again later."
+                    fallback_msg = "⚠️ I'm currently experiencing high traffic and have hit daily usage limits. Please try again in a moment."
                 
                 # Stream the fallback message
                 words = fallback_msg.split(" ")
@@ -490,6 +540,7 @@ def chat():
 
             total_time = (time.time() - start_time) * 1000
             print(f"⚡ Total Streaming & Generation Time: {total_time:.2f} ms")
+
 
             # Save assistant response to MongoDB
             if db_available() and current_user_id and chat_id:
@@ -559,9 +610,10 @@ def index():
 def health():
     return jsonify({
         'status': 'healthy',
-        'api_configured': bool(CEREBRAS_API_KEY),
+        'groq_configured': bool(GROQ_API_KEY),
+        'cerebras_configured': bool(CEREBRAS_API_KEY),
         'db_connected': db_available(),
-        'message': 'Zara AI Backend is running!'
+        'message': 'Zara AI Backend is running with Groq primary AI provider!'
     })
 
 @app.route('/api/health', methods=['GET'])
@@ -576,6 +628,8 @@ def before_request_func():
 if __name__ == '__main__':
     print("\nStarting Zara AI Backend Server...")
     print(f"Server is running!")
-    print(f"API Key configured: {bool(CEREBRAS_API_KEY)}")
+    print(f"Groq API Key configured: {bool(GROQ_API_KEY)}")
+    print(f"Cerebras API Key configured: {bool(CEREBRAS_API_KEY)}")
     print(f"MongoDB connected: {db_available()}\n")
     app.run(debug=True, port=5000)
+
